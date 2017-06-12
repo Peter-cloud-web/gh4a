@@ -45,10 +45,6 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
 
-import static com.gh4a.R.id.delete;
-import static com.gh4a.R.id.edit;
-import static com.gh4a.R.id.share;
-
 abstract class CommentAdapterBase<T> extends RootAdapter<T, CommentAdapterBase.ViewHolder> {
     public interface OnCommentAction<T> {
         void editComment(T comment);
@@ -61,15 +57,15 @@ abstract class CommentAdapterBase<T> extends RootAdapter<T, CommentAdapterBase.V
         @Override
         public boolean onCommentMenuItemClick(T item, MenuItem menuItem) {
             switch (menuItem.getItemId()) {
-                case edit:
+                case R.id.edit:
                     mActionCallback.editComment(item);
                     return true;
 
-                case delete:
+                case R.id.delete:
                     mActionCallback.deleteComment(item);
                     return true;
 
-                case share:
+                case R.id.share:
                     IntentUtils.share(mContext, getShareSubject(item), getUrl(item));
                     return true;
             }
