@@ -17,25 +17,19 @@ package com.gh4a.activities;
 
 import android.content.DialogInterface;
 import android.content.Intent;
-import android.graphics.Point;
 import android.net.Uri;
 import android.os.Bundle;
+import android.support.annotation.Nullable;
 import android.support.v4.content.Loader;
 import android.support.v4.util.LongSparseArray;
-import android.support.v4.view.MenuItemCompat;
-import android.support.v7.app.ActionBar;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.widget.PopupMenu;
 import android.text.TextUtils;
 import android.util.SparseArray;
-import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
-import android.view.MotionEvent;
 import android.view.View;
-import android.widget.EditText;
-import android.widget.TextView;
 
 import com.gh4a.Gh4Application;
 import com.gh4a.ProgressDialogTask;
@@ -46,7 +40,6 @@ import com.gh4a.utils.ApiHelpers;
 import com.gh4a.utils.FileUtils;
 import com.gh4a.utils.IntentUtils;
 import com.gh4a.utils.StringUtils;
-import com.gh4a.utils.UiUtils;
 import com.gh4a.widget.ReactionBar;
 
 import org.eclipse.egit.github.core.CommitComment;
@@ -56,11 +49,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public abstract class DiffViewerActivity extends WebViewerActivity implements
-        ReactionBar.Callback, ReactionBar.ReactionDetailsCache.Listener, View.OnTouchListener {
+        ReactionBar.Callback, ReactionBar.ReactionDetailsCache.Listener {
     protected static Intent fillInIntent(Intent baseIntent, String repoOwner, String repoName,
             String commitSha, String path, String diff, List<CommitComment> comments,
             int initialLine, int highlightStartLine, int highlightEndLine,
@@ -78,11 +69,10 @@ public abstract class DiffViewerActivity extends WebViewerActivity implements
                 .putExtra("initial_comment", initialComment);
     }
 
-    private static final Pattern HUNK_START_PATTERN =
-            Pattern.compile("@@ -(\\d+),\\d+ \\+(\\d+),\\d+.*");
-    private static final String COMMENT_ADD_URI_FORMAT = "comment://add?position=%d&l=%d&r=%d";
+    private static final String COMMENT_ADD_URI_FORMAT =
+            "comment://add?position=%d&l=%d&r=%d&isRightLine=%b";
     private static final String COMMENT_EDIT_URI_FORMAT =
-            "comment://edit?position=%d&l=%d&r=%d&id=%d";
+            "comment://edit?position=%d&l=%d&r=%d&isRightLine=%b&id=%d";
 
     private static final String REACTION_PLUS_ONE_PATH = "M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2"
             + "h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9"
@@ -118,6 +108,8 @@ public abstract class DiffViewerActivity extends WebViewerActivity implements
             + "A8,8 0 0,1 4,12A8,8 0 0,1 12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20M12,2"
             + "C6.47,2 2,6.5 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z";
 
+    protected static final int REQUEST_EDIT = 0;
+
     protected String mRepoOwner;
     protected String mRepoName;
     protected String mPath;
@@ -127,7 +119,7 @@ public abstract class DiffViewerActivity extends WebViewerActivity implements
     private int mHighlightEndLine;
     private boolean mHighlightIsRight;
     private IntentUtils.InitialCommentMarker mInitialComment;
-    private ReactionBar.ReactionDetailsCache mReactionDetailsCache =
+    private final ReactionBar.ReactionDetailsCache mReactionDetailsCache =
             new ReactionBar.ReactionDetailsCache(this);
 
     protected static class CommitCommentWrapper implements ReactionBar.Item {
@@ -145,8 +137,6 @@ public abstract class DiffViewerActivity extends WebViewerActivity implements
     private String[] mDiffLines;
     private final SparseArray<List<CommitComment>> mCommitCommentsByPos = new SparseArray<>();
     private final LongSparseArray<CommitCommentWrapper> mCommitComments = new LongSparseArray<>();
-
-    private final Point mLastTouchDown = new Point();
 
     private static final int MENU_ITEM_VIEW = 10;
 
@@ -169,13 +159,6 @@ public abstract class DiffViewerActivity extends WebViewerActivity implements
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        ActionBar actionBar = getSupportActionBar();
-        actionBar.setTitle(FileUtils.getFileName(mPath));
-        actionBar.setSubtitle(mRepoOwner + "/" + mRepoName);
-        actionBar.setDisplayHomeAsUpEnabled(true);
-
-        mWebView.setOnTouchListener(this);
-
         List<CommitComment> comments = (ArrayList<CommitComment>)
                 getIntent().getSerializableExtra("comments");
 
@@ -185,6 +168,24 @@ public abstract class DiffViewerActivity extends WebViewerActivity implements
         } else {
             getSupportLoaderManager().initLoader(0, null, mCommentCallback);
         }
+    }
+
+    @Nullable
+    @Override
+    protected String getActionBarTitle() {
+        return FileUtils.getFileName(mPath);
+    }
+
+    @Nullable
+    @Override
+    protected String getActionBarSubtitle() {
+        return mRepoOwner + "/" + mRepoName;
+    }
+
+    @Override
+    protected void onDestroy() {
+        mReactionDetailsCache.destroy();
+        super.onDestroy();
     }
 
     @Override
@@ -224,8 +225,8 @@ public abstract class DiffViewerActivity extends WebViewerActivity implements
         inflater.inflate(R.menu.file_viewer_menu, menu);
 
         String viewAtTitle = getString(R.string.object_view_file_at, mSha.substring(0, 7));
-        MenuItem item = menu.add(0, MENU_ITEM_VIEW, Menu.NONE, viewAtTitle);
-        MenuItemCompat.setShowAsAction(item, MenuItemCompat.SHOW_AS_ACTION_NEVER);
+        menu.add(0, MENU_ITEM_VIEW, Menu.NONE, viewAtTitle)
+                .setShowAsActionFlags(MenuItem.SHOW_AS_ACTION_NEVER);
 
         return super.onCreateOptionsMenu(menu);
     }
@@ -259,7 +260,7 @@ public abstract class DiffViewerActivity extends WebViewerActivity implements
         }
         content.append("<pre>");
 
-        mDiffLines = mDiff.split("\n");
+        mDiffLines = mDiff != null ? mDiff.split("\n") : new String[0];
 
         int highlightStartLine = -1, highlightEndLine = -1;
         int leftDiffPosition = -1, rightDiffPosition = -1;
@@ -268,10 +269,10 @@ public abstract class DiffViewerActivity extends WebViewerActivity implements
             String line = mDiffLines[i];
             String cssClass = null;
             if (line.startsWith("@@")) {
-                Matcher matcher = HUNK_START_PATTERN.matcher(line);
-                if (matcher.matches()) {
-                    leftDiffPosition = Integer.parseInt(matcher.group(1)) - 1;
-                    rightDiffPosition = Integer.parseInt(matcher.group(2)) - 1;
+                int[] lineNumbers = StringUtils.extractDiffHunkLineNumbers(line);
+                if (lineNumbers != null) {
+                    leftDiffPosition = lineNumbers[0];
+                    rightDiffPosition = lineNumbers[1];
                 }
                 cssClass = "change";
             } else if (line.startsWith("+")) {
@@ -299,7 +300,7 @@ public abstract class DiffViewerActivity extends WebViewerActivity implements
             }
             if (authorized) {
                 String uri = String.format(Locale.US, COMMENT_ADD_URI_FORMAT,
-                        i, leftDiffPosition, rightDiffPosition);
+                        i, leftDiffPosition, rightDiffPosition, line.startsWith("+"));
                 content.append(" onclick=\"javascript:location.href='");
                 content.append(uri).append("'\"");
             }
@@ -318,7 +319,7 @@ public abstract class DiffViewerActivity extends WebViewerActivity implements
                     content.append("\"");
                     if (authorized) {
                         String uri = String.format(Locale.US, COMMENT_EDIT_URI_FORMAT,
-                                i, leftDiffPosition, rightDiffPosition, id);
+                                i, leftDiffPosition, rightDiffPosition, line.startsWith("+"), id);
                         content.append(" onclick=\"javascript:location.href='");
                         content.append(uri).append("'\"");
                     }
@@ -378,26 +379,32 @@ public abstract class DiffViewerActivity extends WebViewerActivity implements
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        String url = createUrl();
+        String url = createUrl("", 0L);
 
         switch (item.getItemId()) {
             case R.id.browser:
                 IntentUtils.launchBrowser(this, Uri.parse(url));
                 return true;
             case R.id.share:
-                Intent shareIntent = new Intent(Intent.ACTION_SEND);
-                shareIntent.setType("text/plain");
-                shareIntent.putExtra(Intent.EXTRA_SUBJECT, getString(R.string.share_commit_subject,
-                        mSha.substring(0, 7), mRepoOwner + "/" + mRepoName));
-                shareIntent.putExtra(Intent.EXTRA_TEXT, url);
-                shareIntent = Intent.createChooser(shareIntent, getString(R.string.share_title));
-                startActivity(shareIntent);
+                IntentUtils.share(this, getString(R.string.share_commit_subject,
+                        mSha.substring(0, 7), mRepoOwner + "/" + mRepoName), url);
                 return true;
             case MENU_ITEM_VIEW:
                 startActivity(FileViewerActivity.makeIntent(this, mRepoOwner, mRepoName, mSha, mPath));
                 return true;
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == REQUEST_EDIT) {
+            if (resultCode == RESULT_OK) {
+                refresh();
+            }
+        } else {
+            super.onActivityResult(requestCode, resultCode, data);
+        }
     }
 
     private void addCommentsToMap(List<CommitComment> comments) {
@@ -415,42 +422,6 @@ public abstract class DiffViewerActivity extends WebViewerActivity implements
         }
     }
 
-    private void openCommentDialog(final long id, final long replyToId, String line,
-            final int position, final int leftLine, final int rightLine) {
-        final boolean isEdit = id != 0L;
-        LayoutInflater inflater = LayoutInflater.from(this);
-        View commentDialog = inflater.inflate(R.layout.commit_comment_dialog, null);
-
-        final TextView code = (TextView) commentDialog.findViewById(R.id.line);
-        code.setText(line);
-
-        final EditText body = (EditText) commentDialog.findViewById(R.id.body);
-        if (isEdit) {
-            body.setText(mCommitComments.get(id).comment.getBody());
-        }
-
-        final int saveButtonResId = isEdit
-                ? R.string.issue_comment_update_title : R.string.issue_comment_title;
-        final DialogInterface.OnClickListener saveCb = new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                String text = body.getText().toString();
-                new CommentTask(id, replyToId, text, position).schedule();
-            }
-        };
-
-        AlertDialog d = new AlertDialog.Builder(this)
-                .setCancelable(true)
-                .setTitle(getString(R.string.commit_comment_dialog_title, leftLine, rightLine))
-                .setView(commentDialog)
-                .setPositiveButton(saveButtonResId, saveCb)
-                .setNegativeButton(R.string.cancel, null)
-                .show();
-
-        body.addTextChangedListener(new UiUtils.ButtonEnableTextWatcher(
-                body, d.getButton(DialogInterface.BUTTON_POSITIVE)));
-    }
-
     @Override
     protected void handleUrlLoad(Uri uri) {
         if (!uri.getScheme().equals("comment")) {
@@ -461,25 +432,14 @@ public abstract class DiffViewerActivity extends WebViewerActivity implements
         int line = Integer.parseInt(uri.getQueryParameter("position"));
         int leftLine = Integer.parseInt(uri.getQueryParameter("l"));
         int rightLine = Integer.parseInt(uri.getQueryParameter("r"));
+        boolean isRightLine = Boolean.parseBoolean(uri.getQueryParameter("isRightLine"));
         String lineText = mDiffLines[line];
         String idParam = uri.getQueryParameter("id");
         long id = idParam != null ? Long.parseLong(idParam) : 0L;
 
-        if (idParam == null) {
-            openCommentDialog(id, 0L, lineText, line, leftLine, rightLine);
-        } else {
-            CommentActionPopup p = new CommentActionPopup(id, line, lineText, leftLine, rightLine,
-                    mLastTouchDown.x, mLastTouchDown.y);
-            p.show();
-        }
-    }
-
-    @Override
-    public boolean onTouch(View view, MotionEvent event) {
-        if (event.getAction() == MotionEvent.ACTION_DOWN) {
-            mLastTouchDown.set((int) event.getX(), (int) event.getY());
-        }
-        return false;
+        CommentActionPopup p = new CommentActionPopup(id, line, lineText, leftLine, rightLine,
+                mLastTouchDown.x, mLastTouchDown.y, isRightLine);
+        p.show();
     }
 
     private void refresh() {
@@ -490,11 +450,15 @@ public abstract class DiffViewerActivity extends WebViewerActivity implements
     }
 
     protected abstract Loader<LoaderResult<List<CommitComment>>> createCommentLoader();
-    protected abstract void createComment(CommitComment comment, long replyToCommentId) throws IOException;
-    protected abstract void editComment(CommitComment comment) throws IOException;
+    protected abstract void openCommentDialog(long id, long replyToId, String line,
+            int position, int leftLine, int rightLine, CommitComment commitComment);
     protected abstract void deleteComment(long id) throws IOException;
     protected abstract boolean canReply();
-    protected abstract String createUrl();
+    protected abstract String createUrl(String lineId, long replyId);
+
+    private String createLineLinkId(int line, boolean isRight) {
+        return (isRight ? "R" : "L") + line;
+    }
 
     private class CommentActionPopup extends PopupMenu implements
             PopupMenu.OnMenuItemClickListener {
@@ -503,10 +467,11 @@ public abstract class DiffViewerActivity extends WebViewerActivity implements
         private final int mLeftLine;
         private final int mRightLine;
         private final String mLineText;
-        private final ReactionBar.AddReactionMenuHelper mReactionMenuHelper;
+        private final boolean mIsRightLine;
+        private ReactionBar.AddReactionMenuHelper mReactionMenuHelper;
 
         public CommentActionPopup(long id, int position, String lineText,
-                int leftLine, int rightLine, int x, int y) {
+                int leftLine, int rightLine, int x, int y, boolean isRightLine) {
             super(DiffViewerActivity.this, findViewById(R.id.popup_helper));
 
             mId = id;
@@ -514,26 +479,31 @@ public abstract class DiffViewerActivity extends WebViewerActivity implements
             mLeftLine = leftLine;
             mRightLine = rightLine;
             mLineText = lineText;
+            mIsRightLine = isRightLine;
 
             Menu menu = getMenu();
             CommitCommentWrapper comment = mCommitComments.get(mId);
             String ownLogin = Gh4Application.get().getAuthLogin();
 
             getMenuInflater().inflate(R.menu.commit_comment_actions, menu);
-            if (!canReply()) {
+            if (id == 0 || !canReply()) {
                 menu.removeItem(R.id.reply);
             }
-            if (!ApiHelpers.loginEquals(comment.comment.getUser(), ownLogin)) {
+            if (id == 0|| !ApiHelpers.loginEquals(comment.comment.getUser(), ownLogin)) {
                 menu.removeItem(R.id.edit);
                 menu.removeItem(R.id.delete);
             }
 
-            Menu reactionMenu = menu.findItem(R.id.react).getSubMenu();
-            getMenuInflater().inflate(R.menu.reaction_menu, reactionMenu);
+            if (id != 0) {
+                Menu reactionMenu = menu.findItem(R.id.react).getSubMenu();
+                getMenuInflater().inflate(R.menu.reaction_menu, reactionMenu);
 
-            mReactionMenuHelper = new ReactionBar.AddReactionMenuHelper(DiffViewerActivity.this,
-                    reactionMenu, DiffViewerActivity.this, comment, mReactionDetailsCache);
-            mReactionMenuHelper.startLoadingIfNeeded();
+                mReactionMenuHelper = new ReactionBar.AddReactionMenuHelper(DiffViewerActivity.this,
+                        reactionMenu, DiffViewerActivity.this, comment, mReactionDetailsCache);
+                mReactionMenuHelper.startLoadingIfNeeded();
+            } else {
+                menu.removeItem(R.id.react);
+            }
 
             View anchor = findViewById(R.id.popup_helper);
             anchor.layout(x, y, x + 1, y + 1);
@@ -543,7 +513,7 @@ public abstract class DiffViewerActivity extends WebViewerActivity implements
 
         @Override
         public boolean onMenuItemClick(MenuItem item) {
-            if (mReactionMenuHelper.onItemClick(item)) {
+            if (mReactionMenuHelper != null && mReactionMenuHelper.onItemClick(item)) {
                 return true;
             }
 
@@ -561,57 +531,25 @@ public abstract class DiffViewerActivity extends WebViewerActivity implements
                             .show();
                     break;
                 case R.id.reply:
-                    openCommentDialog(0L, mId, mLineText, mPosition, mLeftLine, mRightLine);
+                    openCommentDialog(0L, mId, mLineText, mPosition, mLeftLine, mRightLine, null);
                     break;
                 case R.id.edit:
-                    openCommentDialog(mId, 0L, mLineText, mPosition, mLeftLine, mRightLine);
+                    CommitCommentWrapper wrapper = mCommitComments.get(mId);
+                    CommitComment comment = wrapper != null ? wrapper.comment : null;
+                    openCommentDialog(mId, 0L, mLineText, mPosition, mLeftLine, mRightLine, comment);
                     break;
                 case R.id.add_comment:
-                    openCommentDialog(0L, 0L, mLineText, mPosition, mLeftLine, mRightLine);
+                    openCommentDialog(0L, 0L, mLineText, mPosition, mLeftLine, mRightLine, null);
+                    break;
+                case R.id.share:
+                    String url = createUrl(createLineLinkId(mIsRightLine ? mRightLine : mLeftLine,
+                            mIsRightLine), mId);
+                    String subject = getString(R.string.share_commit_subject, mSha.substring(0, 7),
+                            mRepoOwner + "/" + mRepoName);
+                    IntentUtils.share(DiffViewerActivity.this, subject, url);
                     break;
             }
             return true;
-        }
-    }
-
-    private class CommentTask extends ProgressDialogTask<Void> {
-        private final CommitComment mComment;
-        private final long mReplyToId;
-
-        public CommentTask(long id, long replyToId, String body, int position) {
-            super(DiffViewerActivity.this, R.string.saving_msg);
-            mComment = new CommitComment();
-            mComment.setBody(body);
-            mComment.setId(id);
-            mComment.setPosition(position);
-            mReplyToId = replyToId;
-        }
-
-        @Override
-        protected ProgressDialogTask<Void> clone() {
-            return new CommentTask(mComment.getId(), mReplyToId,
-                    mComment.getBody(), mComment.getPosition());
-        }
-
-        @Override
-        protected Void run() throws IOException {
-            if (mComment.getId() == 0L) {
-                createComment(mComment, mReplyToId);
-            } else {
-                editComment(mComment);
-            }
-            return null;
-        }
-
-        @Override
-        protected void onSuccess(Void result) {
-            refresh();
-            setResult(RESULT_OK);
-        }
-
-        @Override
-        protected String getErrorMessage() {
-            return getContext().getString(R.string.error_edit_commit_comment, mComment.getPosition());
         }
     }
 

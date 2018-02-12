@@ -19,11 +19,10 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
+import android.support.annotation.Nullable;
 import android.support.design.widget.CoordinatorLayout;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.content.Loader;
-import android.support.v4.view.MenuItemCompat;
-import android.support.v7.app.ActionBar;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.view.ActionMode;
 import android.support.v7.widget.LinearLayoutManager;
@@ -97,15 +96,10 @@ public class IssueLabelListActivity extends BaseActivity implements
         setContentView(R.layout.generic_list);
         setContentShown(false);
 
-        ActionBar actionBar = getSupportActionBar();
-        actionBar.setTitle(R.string.issue_labels);
-        actionBar.setSubtitle(mRepoOwner + "/" + mRepoName);
-        actionBar.setDisplayHomeAsUpEnabled(true);
-
         mAdapter = new IssueLabelAdapter(this);
         mAdapter.setOnItemClickListener(this);
 
-        RecyclerView recyclerView = (RecyclerView) findViewById(R.id.list);
+        RecyclerView recyclerView = findViewById(R.id.list);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.addItemDecoration(new DividerItemDecoration(this));
         recyclerView.setTag(R.id.FloatingActionButtonScrollEnabled, new Object());
@@ -141,6 +135,18 @@ public class IssueLabelListActivity extends BaseActivity implements
                 }
             }
         }
+    }
+
+    @Nullable
+    @Override
+    protected String getActionBarTitle() {
+        return getString(R.string.issue_labels);
+    }
+
+    @Nullable
+    @Override
+    protected String getActionBarSubtitle() {
+        return mRepoOwner + "/" + mRepoName;
     }
 
     @Override
@@ -222,14 +228,14 @@ public class IssueLabelListActivity extends BaseActivity implements
 
         @Override
         public boolean onCreateActionMode(ActionMode mode, Menu menu) {
-            MenuItem saveItem = menu.add(Menu.NONE, Menu.FIRST, Menu.NONE, R.string.save)
-                .setIcon(R.drawable.content_save);
-            MenuItemCompat.setShowAsAction(saveItem, MenuItemCompat.SHOW_AS_ACTION_ALWAYS);
+            menu.add(Menu.NONE, Menu.FIRST, Menu.NONE, R.string.save)
+                    .setIcon(R.drawable.content_save)
+                    .setShowAsActionFlags(MenuItem.SHOW_AS_ACTION_ALWAYS);
 
             if (mLabel != mAddedLabel) {
-                MenuItem deleteItem = menu.add(Menu.NONE, Menu.FIRST + 1, Menu.NONE, R.string.delete)
-                    .setIcon(R.drawable.content_discard);
-                MenuItemCompat.setShowAsAction(deleteItem, MenuItemCompat.SHOW_AS_ACTION_ALWAYS);
+                menu.add(Menu.NONE, Menu.FIRST + 1, Menu.NONE, R.string.delete)
+                        .setIcon(R.drawable.content_discard)
+                        .setShowAsActionFlags(MenuItem.SHOW_AS_ACTION_ALWAYS);
             }
 
             return true;

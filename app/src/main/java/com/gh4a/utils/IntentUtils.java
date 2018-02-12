@@ -2,17 +2,21 @@ package com.gh4a.utils;
 
 
 import android.app.Activity;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Parcel;
 import android.os.Parcelable;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
+import android.support.annotation.RequiresApi;
 import android.support.customtabs.CustomTabsIntent;
-import android.support.v4.os.ParcelableCompat;
-import android.support.v4.os.ParcelableCompatCreatorCallbacks;
 import android.widget.Toast;
 
 import com.gh4a.R;
@@ -23,11 +27,19 @@ import java.util.Date;
 import java.util.List;
 
 public class IntentUtils {
+    private static final String EXTRA_NEW_TASK = "IntentUtils.new_task";
+
+    private IntentUtils() {
+    }
+
     public static void launchBrowser(Context context, Uri uri) {
         launchBrowser(context, uri, 0);
     }
 
     public static void launchBrowser(Context context, Uri uri, int flags) {
+        if (uri == null) {
+            return;
+        }
         Intent intent = createBrowserIntent(context, uri);
         if (intent != null) {
             intent.addFlags(flags);
@@ -80,6 +92,22 @@ public class IntentUtils {
         }
     }
 
+    public static void share(Context context, String subject, String url) {
+        Intent shareIntent = new Intent(Intent.ACTION_SEND);
+        shareIntent.setType("text/plain");
+        shareIntent.putExtra(Intent.EXTRA_SUBJECT, subject);
+        shareIntent.putExtra(Intent.EXTRA_TEXT, url);
+        context.startActivity(
+                Intent.createChooser(shareIntent, context.getString(R.string.share_title)));
+    }
+
+    public static void copyToClipboard(Context context, CharSequence label, CharSequence text) {
+        ClipboardManager clipboardManager =
+                (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+        ClipData clipData = ClipData.newPlainText(label, text);
+        clipboardManager.setPrimaryClip(clipData);
+    }
+
     private static Intent createActivityChooserIntent(Context context, Intent intent, Uri uri) {
         final PackageManager pm = context.getPackageManager();
         final List<ResolveInfo> activities = pm.queryIntentActivities(intent,
@@ -118,6 +146,22 @@ public class IntentUtils {
         chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS,
                 chooserIntents.toArray(new Intent[chooserIntents.size()]));
         return chooserIntent;
+    }
+
+    @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
+    public static void startNewTask(@NonNull Context context, @NonNull Intent intent) {
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_DOCUMENT);
+        intent.addFlags(Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT);
+        }
+        intent.putExtra(EXTRA_NEW_TASK, true);
+        context.startActivity(intent);
+    }
+
+    public static boolean isNewTaskIntent(@Nullable Intent intent) {
+        return intent != null && intent.getBooleanExtra(EXTRA_NEW_TASK, false);
     }
 
     public static class InitialCommentMarker implements Parcelable {
@@ -159,9 +203,14 @@ public class IntentUtils {
         }
 
         public static final Parcelable.Creator<InitialCommentMarker> CREATOR =
-                ParcelableCompat.newCreator(new ParcelableCompatCreatorCallbacks<InitialCommentMarker>() {
+                new Parcelable.ClassLoaderCreator<InitialCommentMarker>() {
             @Override
             public InitialCommentMarker createFromParcel(Parcel in, ClassLoader loader) {
+                return createFromParcel(in);
+            }
+
+            @Override
+            public InitialCommentMarker createFromParcel(Parcel in) {
                 long commentId = in.readLong();
                 long timeMillis = in.readLong();
                 return new InitialCommentMarker(commentId,
@@ -171,6 +220,6 @@ public class IntentUtils {
             public InitialCommentMarker[] newArray(int size) {
                 return new InitialCommentMarker[size];
             }
-        });
+        };
     }
 }

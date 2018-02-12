@@ -17,6 +17,7 @@ package com.gh4a.utils;
 
 import android.content.Context;
 import android.graphics.Typeface;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.text.SpannableStringBuilder;
 import android.text.format.DateUtils;
@@ -25,21 +26,18 @@ import com.gh4a.Gh4Application;
 import com.gh4a.widget.CustomTypefaceSpan;
 import com.gh4a.widget.StyleableTextView;
 
+import org.eclipse.egit.github.core.User;
+
 import java.util.Date;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
  * The Class StringUtils.
  */
 public class StringUtils {
-    private static final Pattern EMAIL_ADDRESS_PATTERN = Pattern.compile(
-            "[a-zA-Z0-9\\+\\._%\\-\\+]{1,256}" +
-            "@" +
-            "[a-zA-Z0-9][a-zA-Z0-9\\-]{0,64}" +
-            "(" +
-            "\\." +
-            "[a-zA-Z0-9][a-zA-Z0-9\\-]{0,25}" +
-            ")+");
+    private static final Pattern HUNK_START_PATTERN =
+            Pattern.compile("@@ -(\\d+),\\d+ \\+(\\d+),\\d+.*");
 
     /**
      * Checks if is blank.
@@ -95,10 +93,6 @@ public class StringUtils {
         return userLogin + (!StringUtils.isBlank(name) ? " - " + name : "");
     }
 
-    public static boolean checkEmail(String email) {
-        return EMAIL_ADDRESS_PATTERN.matcher(email).matches();
-    }
-
     public static CharSequence formatRelativeTime(Context context, Date date, boolean showDateIfLongAgo) {
         long now = System.currentTimeMillis();
         long time = date.getTime();
@@ -110,14 +104,18 @@ public class StringUtils {
         return Gh4Application.get().getPrettyTimeInstance().format(date);
     }
 
+    public static CharSequence formatExactTime(Context context, Date date) {
+        return DateUtils.formatDateTime(context, date.getTime(), DateUtils.FORMAT_SHOW_DATE
+                | DateUtils.FORMAT_SHOW_TIME
+                | DateUtils.FORMAT_SHOW_YEAR);
+    }
+
     public static void applyBoldTagsAndSetText(StyleableTextView view, String input) {
-        SpannableStringBuilder text = applyBoldTags(view.getContext(),
-                input, view.getTypefaceValue());
+        SpannableStringBuilder text = applyBoldTags(input, view.getTypefaceValue());
         view.setText(text);
     }
 
-    public static SpannableStringBuilder applyBoldTags(Context context,
-            String input, int baseTypefaceValue) {
+    public static SpannableStringBuilder applyBoldTags(String input, int baseTypefaceValue) {
         SpannableStringBuilder ssb = new SpannableStringBuilder();
         int pos = 0;
 
@@ -151,5 +149,25 @@ public class StringUtils {
         int start = input.substring(0, pos).split("\n").length;
         int end = start + match.split("\n").length - 1;
         return new int[] { start, end };
+    }
+
+    public static int[] extractDiffHunkLineNumbers(@NonNull String diffHunk) {
+        if (!diffHunk.startsWith("@@")) {
+            return null;
+        }
+
+        Matcher matcher = HUNK_START_PATTERN.matcher(diffHunk);
+        if (matcher.matches()) {
+            int leftLine = Integer.parseInt(matcher.group(1)) - 1;
+            int rightLine = Integer.parseInt(matcher.group(2)) - 1;
+            return new int[] { leftLine, rightLine };
+        }
+
+        return null;
+    }
+
+    public static CharSequence formatMention(Context context, User user) {
+        String userLogin = ApiHelpers.getUserLogin(context, user);
+        return "@" + userLogin + " ";
     }
 }

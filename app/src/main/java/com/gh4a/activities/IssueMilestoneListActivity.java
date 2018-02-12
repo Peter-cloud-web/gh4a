@@ -18,21 +18,20 @@ package com.gh4a.activities;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.support.annotation.Nullable;
 import android.support.design.widget.CoordinatorLayout;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
-import android.support.v4.view.ViewCompat;
-import android.support.v7.app.ActionBar;
 import android.support.v7.widget.RecyclerView;
 import android.view.View;
 
-import com.gh4a.BasePagerActivity;
+import com.gh4a.BaseFragmentPagerActivity;
 import com.gh4a.Gh4Application;
 import com.gh4a.R;
 import com.gh4a.fragment.IssueMilestoneListFragment;
 import com.gh4a.fragment.LoadingListFragmentBase;
 
-public class IssueMilestoneListActivity extends BasePagerActivity implements
+public class IssueMilestoneListActivity extends BaseFragmentPagerActivity implements
         View.OnClickListener, LoadingListFragmentBase.OnRecyclerViewCreatedListener {
     public static Intent makeIntent(Context context, String repoOwner, String repoName,
             boolean fromPullRequest) {
@@ -69,11 +68,18 @@ public class IssueMilestoneListActivity extends BasePagerActivity implements
             mCreateFab.setOnClickListener(this);
             rootLayout.addView(mCreateFab);
         }
+    }
 
-        ActionBar actionBar = getSupportActionBar();
-        actionBar.setTitle(R.string.issue_milestones);
-        actionBar.setSubtitle(mRepoOwner + "/" + mRepoName);
-        actionBar.setDisplayHomeAsUpEnabled(true);
+    @Nullable
+    @Override
+    protected String getActionBarTitle() {
+        return getString(R.string.issue_milestones);
+    }
+
+    @Nullable
+    @Override
+    protected String getActionBarSubtitle() {
+        return mRepoOwner + "/" + mRepoName;
     }
 
     @Override
@@ -121,8 +127,8 @@ public class IssueMilestoneListActivity extends BasePagerActivity implements
         super.onPageMoved(position, fraction);
         if (mCreateFab != null) {
             float openFraction = 1 - position - fraction;
-            ViewCompat.setScaleX(mCreateFab, openFraction);
-            ViewCompat.setScaleY(mCreateFab, openFraction);
+            mCreateFab.setScaleX(openFraction);
+            mCreateFab.setScaleY(openFraction);
             mCreateFab.setVisibility(openFraction == 0 ? View.INVISIBLE : View.VISIBLE);
         }
     }

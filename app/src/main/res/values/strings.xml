@@ -11,6 +11,7 @@
     <string name="closing_msg">Closing\u2026</string>
     <string name="opening_msg">Opening\u2026</string>
     <string name="merging_msg">Merging\u2026</string>
+    <string name="reviewing_msg">Adding Review\u2026</string>
     <string name="authenticating">Authenticating\u2026</string>
     <string name="search">Search</string>
     <string name="search_code">Search code</string>
@@ -40,6 +41,7 @@
     <string name="save">Save</string>
     <string name="delete">Delete</string>
     <string name="reply">Reply</string>
+    <string name="reply_selected">Reply (Selected)</string>
     <string name="add_comment">Add comment</string>
     <string name="add_reaction">Add reaction</string>
     <string name="remove_reaction">Remove reaction</string>
@@ -51,6 +53,8 @@
     <string name="theme">Theme</string>
     <string name="pub_timeline">Public Timeline</string>
     <string name="load_failure_explanation">Loading the data from Github failed. Please verify you have a working network connection and try again.</string>
+    <string name="load_failure_explanation_dmca">This repository was taken down for legal reasons.\nPlease see %1$s for details.</string>
+    <string name="load_failure_explanation_with_reason">Loading the data from Github failed. Github told us the following reason:\n%1$s</string>
     <string name="share">Share</string>
     <string name="print">Print</string>
     <string name="downloads">Downloads</string>
@@ -74,10 +78,9 @@
     <string name="menu_wiki">Wiki in browser</string>
     <string name="menu_pull">Pull request %1$d</string>
     <string name="menu_issues">Open issues</string>
+    <string name="menu_pulls">Open pull requests</string>
     <string name="delete_comment_message">Delete this comment?</string>
     <string name="saving_comment">Saving comment\u2026</string>
-    <string name="bookmark_user">Bookmark user</string>
-    <string name="bookmark_repo">Bookmark repo</string>
     <string name="ellipse" translatable="false">\u2026</string>
     <string name="view_more">View more\u2026</string>
     <string name="pulls">Pulls</string>
@@ -121,6 +124,19 @@
     <string name="go_to_logout_page">Go to logout page</string>
     <string name="continue_login">Continue new login</string>
     <string name="unread">Unread</string>
+    <string name="undo">Undo</string>
+    <string name="raw">Raw</string>
+    <string name="view_in_file">View in file</string>
+    <string name="reviewed_files">Reviewed files:</string>
+    <string name="show_details">Show details</string>
+    <string name="preview">Preview</string>
+    <string name="restore">Restore</string>
+    <string name="restore_branch">Restore branch</string>
+    <string name="delete_branch">Delete branch</string>
+    <string name="restore_branch_question">Do you really want to restore the pull request branch?</string>
+    <string name="delete_branch_question">Do you really want to delete the pull request branch?</string>
+    <string name="restore_branch_error">Restoring branch failed</string>
+    <string name="delete_branch_error">Deleting branch failed</string>
 
     <string name="reaction_plus_one" translatable="false">+1</string>
     <string name="reaction_minus_one" translatable="false">-1</string>
@@ -151,6 +167,7 @@
     <string name="repo_sort_order_creation_asc">Oldest</string>
     <string name="repo_sort_order_pushed_desc">Most recently pushed</string>
     <string name="repo_sort_order_pushed_asc">Least recently pushed</string>
+    <string name="filter_and_sort">Filter and Sort</string>
 
     <string name="no_blogs_found">No blogs found.</string>
     <string name="no_comments_found">Nobody has commented so far.</string>
@@ -265,41 +282,41 @@
     <string name="repo_activity">Activity</string>
 
     <!-- Issue events -->
-    <string name="issue_event_closed">Issue was closed by %1$s</string>
-    <string name="issue_event_closed_with_commit">Issue was closed by %1$s with commit [commit]</string>
-    <string name="issue_event_reopened">Issue was reopened by %1$s</string>
-    <string name="issue_event_referenced">Issue was referenced by %1$s</string>
-    <string name="issue_event_referenced_with_commit">Issue was referenced by %1$s from commit [commit]</string>
-    <string name="issue_event_assigned">Issue was assigned to [b]%2$s[/b] by %1$s</string>
-    <string name="issue_event_assigned_self">Issue was self-assigned by %1$s</string>
-    <string name="issue_event_unassigned">Issue was unassigned from [b]%2$s[/b] by %1$s</string>
-    <string name="issue_event_unassigned_self">Issue was self-unassigned from %1$s</string>
-    <string name="issue_event_labeled">Label [label] was added by %1$s</string>
-    <string name="issue_event_unlabeled">Label [label] was removed by %1$s</string>
-    <string name="issue_event_milestoned">Milestone [b]%1$s[/b] was set by %2$s</string>
-    <string name="issue_event_demilestoned">Milestone [b]%1$s[/b] was removed by %2$s</string>
-    <string name="issue_event_renamed">Title was changed from [b]%1$s[/b] to [b]%2$s[/b] by %3$s</string>
-    <string name="issue_event_locked">Issue was [b]locked[/b] by %1$s</string>
-    <string name="issue_event_unlocked">Issue was unlocked by %1$s</string>
+    <string name="issue_event_closed">[b]%1$s[/b] closed this issue [time]</string>
+    <string name="issue_event_closed_with_commit">[b]%1$s[/b] closed this issue in [commit] [time]</string>
+    <string name="issue_event_reopened">[b]%1$s[/b] reopened this issue [time]</string>
+    <string name="issue_event_referenced">[b]%1$s[/b] referenced this issue [time]</string>
+    <string name="issue_event_referenced_with_commit">[b]%1$s[/b] added commit [commit] that referenced this issue [time]</string>
+    <string name="issue_event_assigned">[b]%1$s[/b] assigned [b]%2$s[/b] [time]</string>
+    <string name="issue_event_assigned_self">[b]%1$s[/b] self-assigned this issue [time]</string>
+    <string name="issue_event_unassigned">[b]%1$s[/b] unassigned [b]%2$s[/b] [time]</string>
+    <string name="issue_event_unassigned_self">[b]%1$s[/b] removed their assignment [time]</string>
+    <string name="issue_event_labeled">[b]%1$s[/b] added the [label] label [time]</string>
+    <string name="issue_event_unlabeled">[b]%1$s[/b] removed the [label] label [time]</string>
+    <string name="issue_event_milestoned">[b]%1$s[/b] added this to the [b]%2$s[/b] milestone [time]</string>
+    <string name="issue_event_demilestoned">[b]%1$s[/b] removed this from the [b]%2$s[/b] milestone [time]</string>
+    <string name="issue_event_renamed">[b]%1$s[/b] changed the title from [b]%2$s[/b] to [b]%3$s[/b] [time]</string>
+    <string name="issue_event_locked">[b]%1$s[/b] locked and limited conversation to collaborators [time]</string>
+    <string name="issue_event_unlocked">[b]%1$s[/b] unlocked this conversation [time]</string>
 
     <!-- Pull request events -->
-    <string name="pull_request_event_closed">Pull request was closed by %1$s</string>
-    <string name="pull_request_event_closed_with_commit">Pull request was closed by %1$s with commit [commit]</string>
-    <string name="pull_request_event_reopened">Pull request was reopened by %1$s</string>
-    <string name="pull_request_event_merged">Pull request was merged by %1$s</string>
-    <string name="pull_request_event_merged_with_commit">Pull request was merged as commit [commit] by %1$s</string>
-    <string name="pull_request_event_referenced">Pull request was referenced by %1$s</string>
-    <string name="pull_request_event_referenced_with_commit">Pull request was referenced by %1$s from commit [commit]</string>
-    <string name="pull_request_event_assigned">Pull request was assigned to [b]%2$s[/b] by %1$s</string>
-    <string name="pull_request_event_assigned_self">Pull request was self-assigned by %1$s</string>
-    <string name="pull_request_event_unassigned">Pull request was unassigned from [b]%2$s[/b] by %1$s</string>
-    <string name="pull_request_event_unassigned_self">Pull request was self-unassigned from %1$s</string>
-    <string name="pull_request_event_locked">Pull request was [b]locked[/b] by %1$s</string>
-    <string name="pull_request_event_unlocked">Pull request was unlocked by %1$s</string>
+    <string name="pull_request_event_closed">[b]%1$s[/b] closed this pull request [time]</string>
+    <string name="pull_request_event_closed_with_commit">[b]%1$s[/b] closed this pull request in [commit] [time]</string>
+    <string name="pull_request_event_reopened">[b]%1$s[/b] reopened this pull request [time]</string>
+    <string name="pull_request_event_merged">[b]%1$s[/b] merged this pull request [time]</string>
+    <string name="pull_request_event_merged_with_commit">[b]%1$s[/b] merged this pull request as commit [commit] [time]</string>
+    <string name="pull_request_event_referenced">[b]%1$s[/b] referenced this pull request [time]</string>
+    <string name="pull_request_event_referenced_with_commit">[b]%1$s[/b] added commit [commit] that referenced this pull request [time]</string>
+    <string name="pull_request_event_assigned_self">[b]%1$s[/b] self-assigned this pull request [time]</string>
+    <string name="pull_request_event_review_approved">[b]%1$s[/b] approved these changes [time]</string>
+    <string name="pull_request_event_review_requested_changes">[b]%1$s[/b] requested changes [time]</string>
+    <string name="pull_request_event_review_reviewed">[b]%1$s[/b] reviewed [time]</string>
+    <string name="pull_request_event_review_started_review">[b]%1$s[/b] started a review [time]</string>
+    <string name="pull_request_event_ref_deleted">[b]%1$s[/b] deleted the pull request branch [time]</string>
+    <string name="pull_request_event_ref_restored">[b]%1$s[/b] restored the pull request branch [time]</string>
 
     <!-- Commit -->
     <string name="commit_title">Commit %1$s</string>
-    <string name="commit_in_repo">Commit %1$s in %2$s/%3$s</string>
     <string name="commit">Commit</string>
     <string name="commits">Commits</string>
     <string name="commit_changed">Files Changed</string>
@@ -311,9 +328,7 @@
     <string name="commit_comment_hint">Comment on this commit</string>
     <string name="commit_details">Committed by [b]%1$s[/b] %2$s</string>
     <string name="commit_comment_dialog_title">Comment on line -%1$d +%2$d</string>
-    <string name="error_edit_commit_comment">Saving comment on line %1$d failed.</string>
     <string name="error_delete_commit_comment">Deletion of commit comment failed.</string>
-    <string name="error_edit_comment">Saving comment failed.</string>
     <string name="error_delete_comment">Comment deletion failed.</string>
 
     <!-- Release -->
@@ -382,19 +397,13 @@
     <string name="issue_filter_by_no_milestone">No milestone set</string>
     <string name="issue_filter_by_any_assignee">Any assignee</string>
     <string name="issue_filter_by_no_assignee">Unassigned</string>
+    <string name="issue_filter_remove">Remove filter</string>
     <string name="issue_clear_milestone">No milestone</string>
     <string name="issue_clear_assignee">No assignee</string>
     <string name="issue_no_labels">No labels assigned</string>
-    <string name="issue_milestone_collab_only">Milestone can only be set by repo collaborators</string>
-    <string name="issue_assignee_collab_only">Assignee can only be set by repo collaborators</string>
-    <string name="issue_labels_collab_only">Labels can only be set by repo collaborators</string>
     <string name="issue_milestone_due_date">Due Date</string>
     <string name="issue_milestone_due_unset">No date set</string>
-    <string name="issue_comment_title">Comment</string>
-    <string name="issue_comment_update_title">Update</string>
     <string name="issue_comment_hint">Comment on this issue</string>
-    <string name="issue_comment_header">[b]%1$s[/b]</string>
-    <string name="issue_commit_comment_file">Comment on [b][file][/b]</string>
     <string name="commit_comment_header">%1$s added a note %2$s</string>
     <string name="issue_no_description">No description provided.</string>
     <string name="close_issue_confirm">Do you really want to close this issue?</string>
@@ -402,7 +411,9 @@
 
     <!-- Pull Request -->
     <string name="pull_request_title">Pull Request</string>
+    <string name="review_title_format">Pull Request #%1$d - Review</string>
     <string name="pull_request_conversation">Conversation</string>
+    <string name="pull_request_add_review">Reviews</string>
     <string name="pull_request_files">Files</string>
     <string name="pull_requests">Pull Requests</string>
     <string name="pull_requests_open">Open Pull Requests</string>
@@ -416,8 +427,12 @@
     <string name="pull_error_merge">Merging pull request #%1$d failed.</string>
     <string name="pull_message_dialog_title">Merge pull request #%1$d</string>
     <string name="pull_merge_message_description">If you want to add additional details to the merge commit message, please enter them below.</string>
-    <string name="pull_merge_status_clean">Pull request can be merged</string>
-    <string name="pull_merge_status_unstable">Pull request didn\'t pass all checks</string>
+    <string name="pull_merge_status_behind">This branch is out-of-date with the base branch</string>
+    <string name="pull_merge_status_blocked">Merging is blocked</string>
+    <string name="pull_merge_status_clean">All checks have passed</string>
+    <string name="pull_merge_status_pending">Some checks haven\'t completed yet</string>
+    <string name="pull_merge_status_unstable">Some checks were not successful</string>
+    <string name="pull_merge_status_mergable">Pull request can be merged</string>
     <string name="pull_merge_status_dirty">Pull request has conflicts that need to be resolved manually</string>
     <string name="pull_merge_status_unknown">The status of the pull request could not be determined</string>
     <string name="pull_merge_method">Merge method</string>
@@ -430,6 +445,19 @@
     <string name="close_pull_request_confirm">Do you really want to close this pull request?</string>
     <string name="reopen_pull_request_confirm">Do you really want to reopen this pull request?</string>
     <string name="pull_request_edit_title">Edit Pull Request #%1$d</string>
+    <string name="review_reply_hint">Reply to selected group</string>
+    <string name="no_reply_group_selected_hint">Select group to reply to</string>
+    <string name="pull_request_review_dialog_title">Review pull request #%1$d</string>
+    <string name="pull_request_review_event">Review type</string>
+    <string name="pull_request_review_event_comment">Comment</string>
+    <string name="pull_request_review_event_approve">Approve</string>
+    <string name="pull_request_review_event_request_changes">Request Changes</string>
+    <string name="pull_request_review_body">Review Summary</string>
+    <string name="pull_request_review_description">Leave a comment about this review below.</string>
+    <string name="pull_request_review_button_affirm">Comment</string>
+    <string name="pull_request_review_error">Adding review to pull request #%1$d failed.</string>
+    <string name="pull_request_review_changes">Review</string>
+    <string name="review_create_error">Review creation failed.</string>
 
     <!-- Object -->
     <string name="object_view_file_at">View file @ %1$s</string>
@@ -458,8 +486,7 @@
     <string name="recent_wiki">Recent Wiki Updates</string>
 
     <!-- Bookmarks -->
-    <string name="remove">Remove</string>
-    <string name="remove_bookmark_confirm">Do you really want to remove this bookmark?</string>
+    <string name="bookmark">Bookmark</string>
     <string name="remove_bookmark">Remove bookmark</string>
     <string name="bookmark_saved">Bookmark saved</string>
     <string name="bookmark_removed">Bookmark removed</string>
@@ -486,6 +513,7 @@
     <string name="share_user_subject_loginonly">User %1$s</string>
     <string name="share_comment_subject">Comment #%1$d in issue %2$d at %3$s</string>
     <string name="share_commit_comment_subject">Commit comment #%1$d at %2$s</string>
+    <string name="share_line_subject">Line %1$d in file %2$s at %3$s</string>
 
     <!-- Webview text size -->
     <string name="menu_text_size">Code view text size</string>
@@ -496,4 +524,40 @@
     <string name="gist_print_document_title">%1$s in gist %2$s of %3$s</string>
     <string name="file_print_document_title">%1$s in %2$s/%3$s</string>
     <string name="wiki_print_document_title">Wiki page %1$s in %2$s/%3$s</string>
+
+    <string name="repository_owner_avatar">Repository owner avatar</string>
+    <string name="collaborator">Collaborator</string>
+    <string name="contributor">Contributor</string>
+    <string name="first_time_contributor">First-time contributor</string>
+    <string name="first_timer">First-timer</string>
+    <string name="member">Member</string>
+    <string name="owner">Owner</string>
+    <string name="copy_number">Copy number</string>
+    <string name="check_failing">%1$d failing</string>
+    <string name="check_pending">%1$d pending</string>
+    <string name="check_successful">%1$d successful</string>
+
+    <plurals name="checks_summary">
+        <item quantity="one">%1$s check</item>
+        <item quantity="other">%1$s checks</item>
+    </plurals>
+
+    <string name="channel_notifications_name">GitHub notifications</string>
+    <string name="channel_notifications_description">Notifications received from GitHub.</string>
+    <string name="unread_notifications_summary_title">Unread GitHub notifications</string>
+    <plurals name="unread_notifications_summary_text">
+        <item quantity="zero">No unread notifications</item>
+        <item quantity="one">One unread notification</item>
+        <item quantity="other">%1$d unread notifications</item>
+    </plurals>
+    <plurals name="notification">
+        <item quantity="one">1 notification</item>
+        <item quantity="other">%1$d notifications</item>
+    </plurals>
+    <string name="notification_subject_commit">Commit</string>
+    <string name="notification_subject_issue">Issue</string>
+    <string name="notification_subject_pr">PR</string>
+    <string name="notification_subject_release">Release</string>
+    <string name="notification_interval">Sync interval</string>
+    <string name="detach">Open in new window</string>
 </resources>

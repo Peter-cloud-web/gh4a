@@ -18,7 +18,6 @@ import android.support.annotation.NonNull;
 import android.support.annotation.StringRes;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
-import android.support.v4.view.ViewCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.widget.RecyclerView;
 import android.text.Editable;
@@ -26,6 +25,7 @@ import android.text.Spannable;
 import android.text.SpannableStringBuilder;
 import android.text.TextWatcher;
 import android.text.method.LinkMovementMethod;
+import android.text.style.ForegroundColorSpan;
 import android.view.ActionMode;
 import android.view.ContextThemeWrapper;
 import android.view.LayoutInflater;
@@ -216,7 +216,7 @@ public class UiUtils {
         if (view == null) {
             return false;
         }
-        return ViewCompat.canScrollVertically(view, -1);
+        return view.canScrollVertically(-1);
     }
 
     public static Context makeHeaderThemedContext(Context context) {
@@ -229,7 +229,7 @@ public class UiUtils {
 
     public static Dialog createProgressDialog(Context context, @StringRes int messageResId) {
         View content = LayoutInflater.from(context).inflate(R.layout.progress_dialog, null);
-        TextView message = (TextView) content.findViewById(R.id.message);
+        TextView message = content.findViewById(R.id.message);
 
         message.setText(messageResId);
         return new AlertDialog.Builder(context)
@@ -350,7 +350,7 @@ public class UiUtils {
     }
 
     public static class ButtonEnableTextWatcher extends EmptinessWatchingTextWatcher {
-        private View mView;
+        private final View mView;
 
         public ButtonEnableTextWatcher(EditText editor, View view) {
             super(editor);
@@ -458,5 +458,38 @@ public class UiUtils {
             builder.setSpan(span, pos, pos + label.getName().length(), 0);
         }
         return builder;
+    }
+
+    public static int limitViewHeight(int heightMeasureSpec, int maxHeight) {
+        int heightSize = View.MeasureSpec.getSize(heightMeasureSpec);
+        int heightMode = View.MeasureSpec.getMode(heightMeasureSpec);
+
+        switch (heightMode) {
+            case View.MeasureSpec.AT_MOST:
+            case View.MeasureSpec.EXACTLY:
+                heightMeasureSpec = View.MeasureSpec.makeMeasureSpec(
+                        Math.min(heightSize, maxHeight), heightMode);
+                break;
+            case View.MeasureSpec.UNSPECIFIED:
+                heightMeasureSpec =
+                        View.MeasureSpec.makeMeasureSpec(maxHeight, View.MeasureSpec.AT_MOST);
+                break;
+        }
+
+        return heightMeasureSpec;
+    }
+
+    public static void setMenuItemText(Context context, MenuItem item, String title,
+            String subtitle) {
+        SpannableStringBuilder builder = new SpannableStringBuilder();
+        builder.append(title).append("\n");
+
+        int start = builder.length();
+        builder.append(subtitle);
+
+        int secondaryTextColor = UiUtils.resolveColor(context, android.R.attr.textColorSecondary);
+        builder.setSpan(new ForegroundColorSpan(secondaryTextColor), start, builder.length(), 0);
+
+        item.setTitle(builder);
     }
 }

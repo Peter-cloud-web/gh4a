@@ -8,7 +8,6 @@ import android.os.Bundle;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.Loader;
 import android.support.v4.util.Pair;
-import android.support.v4.view.MenuItemCompat;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AlertDialog;
 import android.text.TextUtils;
@@ -23,7 +22,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.gh4a.BackgroundTask;
-import com.gh4a.BasePagerActivity;
+import com.gh4a.BaseFragmentPagerActivity;
 import com.gh4a.Gh4Application;
 import com.gh4a.R;
 import com.gh4a.db.BookmarksProvider;
@@ -54,7 +53,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class RepositoryActivity extends BasePagerActivity {
+public class RepositoryActivity extends BaseFragmentPagerActivity {
     public static Intent makeIntent(Context context, Repository repo) {
         return makeIntent(context, repo, null);
     }
@@ -330,8 +329,8 @@ public class RepositoryActivity extends BasePagerActivity {
         watchAction.setVisible(authorized);
         if (authorized) {
             if (mIsWatching == null) {
-                MenuItemCompat.setActionView(watchAction, R.layout.ab_loading);
-                MenuItemCompat.expandActionView(watchAction);
+                watchAction.setActionView(R.layout.ab_loading);
+                watchAction.expandActionView();
             } else if (mIsWatching) {
                 watchAction.setTitle(R.string.repo_unwatch_action);
             } else {
@@ -343,8 +342,8 @@ public class RepositoryActivity extends BasePagerActivity {
         starAction.setVisible(authorized);
         if (authorized) {
             if (mIsStarring == null) {
-                MenuItemCompat.setActionView(starAction, R.layout.ab_loading);
-                MenuItemCompat.expandActionView(starAction);
+                starAction.setActionView(R.layout.ab_loading);
+                starAction.expandActionView();
             } else if (mIsStarring) {
                 starAction.setTitle(R.string.repo_unstar_action);
                 starAction.setIcon(R.drawable.unstar);
@@ -362,7 +361,7 @@ public class RepositoryActivity extends BasePagerActivity {
             if (bookmarkAction != null) {
                 bookmarkAction.setTitle(BookmarksProvider.hasBookmarked(this, getBookmarkUrl())
                         ? R.string.remove_bookmark
-                        : R.string.bookmark_repo);
+                        : R.string.bookmark);
             }
         }
 
@@ -379,13 +378,13 @@ public class RepositoryActivity extends BasePagerActivity {
         String url = "https://github.com/" + mRepoOwner + "/" + mRepoName;
         switch (item.getItemId()) {
             case R.id.watch:
-                MenuItemCompat.setActionView(item, R.layout.ab_loading);
-                MenuItemCompat.expandActionView(item);
+                item.setActionView(R.layout.ab_loading);
+                item.expandActionView();
                 new UpdateWatchTask().schedule();
                 return true;
             case R.id.star:
-                MenuItemCompat.setActionView(item, R.layout.ab_loading);
-                MenuItemCompat.expandActionView(item);
+                item.setActionView(R.layout.ab_loading);
+                item.expandActionView();
                 new UpdateStarTask().schedule();
                 return true;
             case R.id.ref:
@@ -397,12 +396,7 @@ public class RepositoryActivity extends BasePagerActivity {
                 }
                 return true;
             case R.id.share:
-                Intent shareIntent = new Intent(Intent.ACTION_SEND);
-                shareIntent.setType("text/plain");
-                shareIntent.putExtra(Intent.EXTRA_SUBJECT, mRepoOwner + "/" + mRepoName);
-                shareIntent.putExtra(Intent.EXTRA_TEXT,  url);
-                shareIntent = Intent.createChooser(shareIntent, getString(R.string.share_title));
-                startActivity(shareIntent);
+                IntentUtils.share(this, mRepoOwner + "/" + mRepoName, url);
                 return true;
             case R.id.browser:
                 IntentUtils.launchBrowser(this, Uri.parse(url));
@@ -418,7 +412,7 @@ public class RepositoryActivity extends BasePagerActivity {
                     BookmarksProvider.removeBookmark(this, bookmarkUrl);
                 } else {
                     BookmarksProvider.saveBookmark(this, mActionBar.getTitle().toString(),
-                            BookmarksProvider.Columns.TYPE_REPO, bookmarkUrl, getCurrentRef());
+                            BookmarksProvider.Columns.TYPE_REPO, bookmarkUrl, getCurrentRef(), true);
                 }
                 return true;
             case R.id.zip_download:
@@ -530,8 +524,8 @@ public class RepositoryActivity extends BasePagerActivity {
             if (convertView == null) {
                 convertView = mInflater.inflate(R.layout.row_branch, parent, false);
             }
-            ImageView icon = (ImageView) convertView.findViewById(R.id.icon);
-            TextView title = (TextView) convertView.findViewById(R.id.title);
+            ImageView icon = convertView.findViewById(R.id.icon);
+            TextView title = convertView.findViewById(R.id.title);
 
             icon.setImageResource(mItems.get(position) instanceof RepositoryTag
                     ? mTagDrawableResId : mBranchDrawableResId);

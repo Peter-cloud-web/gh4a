@@ -19,14 +19,15 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.support.annotation.Nullable;
+import android.support.design.widget.AppBarLayout;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.Loader;
-import android.support.v7.app.ActionBar;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 
-import com.gh4a.BasePagerActivity;
+import com.gh4a.BaseFragmentPagerActivity;
 import com.gh4a.R;
 import com.gh4a.fragment.CommitFragment;
 import com.gh4a.fragment.CommitNoteFragment;
@@ -35,13 +36,14 @@ import com.gh4a.loader.CommitLoader;
 import com.gh4a.loader.LoaderCallbacks;
 import com.gh4a.loader.LoaderResult;
 import com.gh4a.utils.IntentUtils;
+import com.gh4a.widget.BottomSheetCompatibleScrollingViewBehavior;
 
 import org.eclipse.egit.github.core.CommitComment;
 import org.eclipse.egit.github.core.RepositoryCommit;
 
 import java.util.List;
 
-public class CommitActivity extends BasePagerActivity implements
+public class CommitActivity extends BaseFragmentPagerActivity implements
         CommitFragment.CommentUpdateListener, CommitNoteFragment.CommentUpdateListener {
     public static Intent makeIntent(Context context, String repoOwner, String repoName, String sha) {
         return makeIntent(context, repoOwner, repoName, -1, sha, null);
@@ -105,17 +107,8 @@ public class CommitActivity extends BasePagerActivity implements
         @Override
         protected void onResultReady(List<CommitComment> result) {
             mComments = result;
-            boolean foundComment = false;
-            if (mInitialComment != null) {
-                for (CommitComment comment : result) {
-                    if (comment.getId() == mInitialComment.commentId) {
-                        foundComment = comment.getPosition() < 0;
-                        break;
-                    }
-                }
-                if (!foundComment) {
-                    mInitialComment = null;
-                }
+            if (result.isEmpty()) {
+                mInitialComment = null;
             }
             showContentIfReady();
         }
@@ -126,15 +119,27 @@ public class CommitActivity extends BasePagerActivity implements
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        ActionBar actionBar = getSupportActionBar();
-        actionBar.setTitle(getString(R.string.commit_title, mObjectSha.substring(0, 7)));
-        actionBar.setSubtitle(mRepoOwner + "/" + mRepoName);
-        actionBar.setDisplayHomeAsUpEnabled(true);
-
         setContentShown(false);
 
         getSupportLoaderManager().initLoader(0, null, mCommitCallback);
         getSupportLoaderManager().initLoader(1, null, mCommentCallback);
+    }
+
+    @Nullable
+    @Override
+    protected String getActionBarTitle() {
+        return getString(R.string.commit_title, mObjectSha.substring(0, 7));
+    }
+
+    @Nullable
+    @Override
+    protected String getActionBarSubtitle() {
+        return mRepoOwner + "/" + mRepoName;
+    }
+
+    @Override
+    protected AppBarLayout.ScrollingViewBehavior onCreateSwipeLayoutBehavior() {
+        return new BottomSheetCompatibleScrollingViewBehavior();
     }
 
     @Override
@@ -181,6 +186,11 @@ public class CommitActivity extends BasePagerActivity implements
     }
 
     @Override
+    public boolean displayDetachAction() {
+        return true;
+    }
+
+    @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         MenuInflater inflater = getMenuInflater();
         inflater.inflate(R.menu.commit_menu, menu);
@@ -204,13 +214,8 @@ public class CommitActivity extends BasePagerActivity implements
                 IntentUtils.launchBrowser(this, Uri.parse(diffUrl));
                 return true;
             case R.id.share:
-                Intent shareIntent = new Intent(Intent.ACTION_SEND);
-                shareIntent.setType("text/plain");
-                shareIntent.putExtra(Intent.EXTRA_SUBJECT, getString(R.string.share_commit_subject,
-                        mObjectSha.substring(0, 7), mRepoOwner + "/" + mRepoName));
-                shareIntent.putExtra(Intent.EXTRA_TEXT, diffUrl);
-                shareIntent = Intent.createChooser(shareIntent, getString(R.string.share_title));
-                startActivity(shareIntent);
+                IntentUtils.share(this, getString(R.string.share_commit_subject,
+                        mObjectSha.substring(0, 7), mRepoOwner + "/" + mRepoName), diffUrl);
                 return true;
         }
         return super.onOptionsItemSelected(item);

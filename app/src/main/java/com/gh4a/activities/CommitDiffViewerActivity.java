@@ -50,9 +50,14 @@ public class CommitDiffViewerActivity extends DiffViewerActivity {
     }
 
     @Override
-    protected String createUrl() {
-        return "https://github.com/" + mRepoOwner + "/" + mRepoName + "/commit/" + mSha
-                + "#diff-" + ApiHelpers.md5(mPath);
+    protected String createUrl(String lineId, long replyId) {
+        String link = "https://github.com/" + mRepoOwner + "/" + mRepoName + "/commit/" + mSha;
+        if (replyId > 0L) {
+            link += "#commitcomment-" + replyId;
+        } else {
+            link += "#diff-" + ApiHelpers.md5(mPath) + lineId;
+        }
+        return link;
     }
 
     @Override
@@ -61,19 +66,12 @@ public class CommitDiffViewerActivity extends DiffViewerActivity {
     }
 
     @Override
-    protected void createComment(CommitComment comment, long replyToCommentId) throws IOException {
-        comment.setPath(mPath);
-
-        Gh4Application app = Gh4Application.get();
-        CommitService commitService = (CommitService) app.getService(Gh4Application.COMMIT_SERVICE);
-        commitService.addComment(new RepositoryId(mRepoOwner, mRepoName), mSha, comment);
-    }
-
-    @Override
-    protected void editComment(CommitComment comment) throws IOException {
-        Gh4Application app = Gh4Application.get();
-        CommitService commitService = (CommitService) app.getService(Gh4Application.COMMIT_SERVICE);
-        commitService.editComment(new RepositoryId(mRepoOwner, mRepoName), comment);
+    protected void openCommentDialog(long id, long replyToId, String line, int position,
+            int leftLine, int rightLine, CommitComment commitComment) {
+        String body = commitComment == null ? "" : commitComment.getBody();
+        Intent intent = EditDiffCommentActivity.makeIntent(this, mRepoOwner, mRepoName,
+                mSha, mPath, line, leftLine, rightLine, position, id, body);
+        startActivityForResult(intent, REQUEST_EDIT);
     }
 
     @Override

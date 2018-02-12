@@ -22,10 +22,10 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
+import android.support.annotation.Nullable;
 import android.support.v4.content.Loader;
 import android.support.v4.print.PrintHelper;
-import android.support.v4.view.MenuItemCompat;
-import android.support.v7.app.ActionBar;
+import android.support.v7.widget.PopupMenu;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -49,7 +49,8 @@ import org.eclipse.egit.github.core.util.EncodingUtils;
 import java.util.List;
 import java.util.Locale;
 
-public class FileViewerActivity extends WebViewerActivity {
+public class FileViewerActivity extends WebViewerActivity
+        implements PopupMenu.OnMenuItemClickListener {
     public static Intent makeIntent(Context context, String repoOwner, String repoName,
             String ref, String fullPath) {
         return makeIntent(context, repoOwner, repoName, ref, fullPath, -1, -1, null);
@@ -86,6 +87,8 @@ public class FileViewerActivity extends WebViewerActivity {
     private int mHighlightEnd;
     private TextMatch mTextMatch;
     private RepositoryContents mContent;
+    private int mLastTouchedLine = 0;
+    private boolean mViewRawText;
 
     private static final int MENU_ITEM_HISTORY = 10;
     private static final String RAW_URL_FORMAT = "https://raw.githubusercontent.com/%s/%s/%s/%s";
@@ -137,11 +140,18 @@ public class FileViewerActivity extends WebViewerActivity {
         } else {
             getSupportLoaderManager().initLoader(0, null, mFileCallback);
         }
+    }
 
-        ActionBar actionBar = getSupportActionBar();
-        actionBar.setTitle(filename);
-        actionBar.setSubtitle(mRepoOwner + "/" + mRepoName);
-        actionBar.setDisplayHomeAsUpEnabled(true);
+    @Nullable
+    @Override
+    protected String getActionBarTitle() {
+        return FileUtils.getFileName(mPath);
+    }
+
+    @Nullable
+    @Override
+    protected String getActionBarSubtitle() {
+        return mRepoOwner + "/" + mRepoName;
     }
 
     @Override
@@ -173,10 +183,10 @@ public class FileViewerActivity extends WebViewerActivity {
         String base64Data = mContent.getContent();
         if (base64Data != null && FileUtils.isImage(mPath)) {
             String title = addTitleHeader ? getDocumentTitle() : null;
-            String imageUrl = "data:image/" + FileUtils.getFileExtension(mPath) +
+            String imageUrl = "data:" + FileUtils.getMimeTypeFor(mPath) +
                     ";base64," + base64Data;
             return highlightImage(imageUrl, cssTheme, title);
-        } else if (base64Data != null && FileUtils.isMarkdown(mPath)) {
+        } else if (base64Data != null && FileUtils.isMarkdown(mPath) && !mViewRawText) {
             return generateMarkdownHtml(base64Data,
                     mRepoOwner, mRepoName, mRef, cssTheme, addTitleHeader);
         } else {
@@ -228,12 +238,18 @@ public class FileViewerActivity extends WebViewerActivity {
         MenuInflater inflater = getMenuInflater();
         inflater.inflate(R.menu.file_viewer_menu, menu);
 
-        if (FileUtils.isImage(mPath) || FileUtils.isMarkdown(mPath)) {
+        boolean isMarkdown = FileUtils.isMarkdown(mPath);
+        if (FileUtils.isImage(mPath) || (isMarkdown && !mViewRawText)) {
             menu.removeItem(R.id.wrap);
         }
+        if (isMarkdown) {
+            MenuItem viewRawItem = menu.findItem(R.id.view_raw);
+            viewRawItem.setChecked(mViewRawText);
+            viewRawItem.setVisible(true);
+        }
 
-        MenuItem item = menu.add(0, MENU_ITEM_HISTORY, Menu.NONE, R.string.history);
-        MenuItemCompat.setShowAsAction(item, MenuItemCompat.SHOW_AS_ACTION_NEVER);
+        menu.add(0, MENU_ITEM_HISTORY, Menu.NONE, R.string.history)
+                .setShowAsActionFlags(MenuItem.SHOW_AS_ACTION_NEVER);
 
         return super.onCreateOptionsMenu(menu);
     }
@@ -248,17 +264,17 @@ public class FileViewerActivity extends WebViewerActivity {
                 IntentUtils.launchBrowser(this, Uri.parse(url));
                 return true;
             case R.id.share:
-                Intent shareIntent = new Intent(Intent.ACTION_SEND);
-                shareIntent.setType("text/plain");
-                shareIntent.putExtra(Intent.EXTRA_SUBJECT, getString(R.string.share_file_subject,
-                        FileUtils.getFileName(mPath), mRepoOwner + "/" + mRepoName));
-                shareIntent.putExtra(Intent.EXTRA_TEXT, url);
-                shareIntent = Intent.createChooser(shareIntent, getString(R.string.share_title));
-                startActivity(shareIntent);
+                IntentUtils.share(this, getString(R.string.share_file_subject,
+                        FileUtils.getFileName(mPath), mRepoOwner + "/" + mRepoName), url);
                 return true;
             case MENU_ITEM_HISTORY:
                 startActivity(CommitHistoryActivity.makeIntent(this,
                         mRepoOwner, mRepoName, mRef, mPath));
+                return true;
+            case R.id.view_raw:
+                mViewRawText = !mViewRawText;
+                item.setChecked(mViewRawText);
+                onRefresh();
                 return true;
          }
          return super.onOptionsItemSelected(item);
@@ -267,6 +283,47 @@ public class FileViewerActivity extends WebViewerActivity {
     @Override
     protected Intent navigateUp() {
         return RepositoryActivity.makeIntent(this, mRepoOwner, mRepoName);
+    }
+
+    @Override
+    public boolean onMenuItemClick(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.share:
+                if (mLastTouchedLine > 0) {
+                    String subject = getString(R.string.share_line_subject, mLastTouchedLine, mPath,
+                            mRepoOwner + "/" + mRepoName);
+                    IntentUtils.share(this, subject, createUrl());
+                }
+                return true;
+        }
+        return false;
+    }
+
+    @Override
+    protected void onLineTouched(int line, int x, int y) {
+        super.onLineTouched(line, x, y);
+
+        mLastTouchedLine = line;
+
+        View anchor = findViewById(R.id.popup_helper);
+        anchor.layout(x, y, x + 1, y + 1);
+        if (!isFinishing()) {
+            PopupMenu popupMenu = new PopupMenu(this, anchor);
+            popupMenu.getMenuInflater().inflate(R.menu.file_line_menu, popupMenu.getMenu());
+            popupMenu.show();
+            popupMenu.setOnMenuItemClickListener(this);
+        }
+    }
+
+    @Override
+    protected boolean shouldWrapLines() {
+        boolean displayingMarkdown = FileUtils.isMarkdown(mPath) && !mViewRawText;
+        return !displayingMarkdown && super.shouldWrapLines();
+    }
+
+    private String createUrl() {
+        return "https://github.com/" + mRepoOwner + "/" + mRepoName + "/blob/" + mRef + "/" +
+                mPath + "#L" + mLastTouchedLine;
     }
 
     private void openUnsuitableFileAndFinish() {

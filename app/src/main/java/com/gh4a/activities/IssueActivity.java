@@ -22,10 +22,14 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.annotation.StringRes;
+import android.support.design.widget.AppBarLayout;
 import android.support.design.widget.CoordinatorLayout;
+import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentManager;
 import android.support.v4.content.Loader;
-import android.support.v7.app.ActionBar;
 import android.support.v7.app.AlertDialog;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -47,6 +51,7 @@ import com.gh4a.loader.LoaderResult;
 import com.gh4a.utils.ApiHelpers;
 import com.gh4a.utils.IntentUtils;
 import com.gh4a.utils.UiUtils;
+import com.gh4a.widget.BottomSheetCompatibleScrollingViewBehavior;
 import com.gh4a.widget.IssueStateTrackingFloatingActionButton;
 
 import org.eclipse.egit.github.core.Issue;
@@ -115,11 +120,6 @@ public class IssueActivity extends BaseActivity implements View.OnClickListener 
         setContentView(R.layout.frame_layout);
         setContentShown(false);
 
-        ActionBar actionBar = getSupportActionBar();
-        actionBar.setTitle(getString(R.string.issue) + " #" + mIssueNumber);
-        actionBar.setSubtitle(mRepoOwner + "/" + mRepoName);
-        actionBar.setDisplayHomeAsUpEnabled(true);
-
         LayoutInflater inflater = LayoutInflater.from(UiUtils.makeHeaderThemedContext(this));
         mHeader = (ViewGroup) inflater.inflate(R.layout.issue_header, null);
         mHeader.setClickable(false);
@@ -132,6 +132,22 @@ public class IssueActivity extends BaseActivity implements View.OnClickListener 
 
         getSupportLoaderManager().initLoader(0, null, mIssueCallback);
         getSupportLoaderManager().initLoader(1, null, mCollaboratorCallback);
+    }
+
+    @NonNull
+    protected String getActionBarTitle() {
+        return getString(R.string.issue) + " #" + mIssueNumber;
+    }
+
+    @Nullable
+    @Override
+    protected String getActionBarSubtitle() {
+        return mRepoOwner + "/" + mRepoName;
+    }
+
+    @Override
+    protected AppBarLayout.ScrollingViewBehavior onCreateSwipeLayoutBehavior() {
+        return new BottomSheetCompatibleScrollingViewBehavior();
     }
 
     @Override
@@ -148,9 +164,15 @@ public class IssueActivity extends BaseActivity implements View.OnClickListener 
         if (mIssue == null || mIsCollaborator == null) {
             return;
         }
-        setFragment(IssueFragment.newInstance(mRepoOwner, mRepoName,
-                mIssue, mIsCollaborator, mInitialComment));
-        getSupportFragmentManager().beginTransaction()
+        FragmentManager fm = getSupportFragmentManager();
+        IssueFragment newFragment = IssueFragment.newInstance(mRepoOwner, mRepoName,
+                mIssue, mIsCollaborator, mInitialComment);
+        if (mFragment != null) {
+            Fragment.SavedState state = fm.saveFragmentInstanceState(mFragment);
+            newFragment.setInitialSavedState(state);
+        }
+        setFragment(newFragment);
+        fm.beginTransaction()
                 .replace(R.id.details, mFragment)
                 .commitAllowingStateLoss();
         mInitialComment = null;
@@ -166,7 +188,7 @@ public class IssueActivity extends BaseActivity implements View.OnClickListener 
     }
 
     private void updateHeader() {
-        TextView tvState = (TextView) mHeader.findViewById(R.id.tv_state);
+        TextView tvState = mHeader.findViewById(R.id.tv_state);
         boolean closed = ApiHelpers.IssueState.CLOSED.equals(mIssue.getState());
         int stateTextResId = closed ? R.string.closed : R.string.open;
         int stateColorAttributeId = closed ? R.attr.colorIssueClosed : R.attr.colorIssueOpen;
@@ -175,7 +197,7 @@ public class IssueActivity extends BaseActivity implements View.OnClickListener 
         transitionHeaderToColor(stateColorAttributeId,
                 closed ? R.attr.colorIssueClosedDark : R.attr.colorIssueOpenDark);
 
-        TextView tvTitle = (TextView) mHeader.findViewById(R.id.tv_title);
+        TextView tvTitle = mHeader.findViewById(R.id.tv_title);
         tvTitle.setText(mIssue.getTitle());
 
         mHeader.setVisibility(View.VISIBLE);
@@ -206,9 +228,15 @@ public class IssueActivity extends BaseActivity implements View.OnClickListener 
         if (mIssue == null) {
             menu.removeItem(R.id.browser);
             menu.removeItem(R.id.share);
+            menu.removeItem(R.id.copy_number);
         }
 
         return super.onCreateOptionsMenu(menu);
+    }
+
+    @Override
+    public boolean displayDetachAction() {
+        return true;
     }
 
     @Override
@@ -227,16 +255,16 @@ public class IssueActivity extends BaseActivity implements View.OnClickListener 
                 }
                 return true;
             case R.id.share:
-                Intent shareIntent = new Intent(Intent.ACTION_SEND);
-                shareIntent.setType("text/plain");
-                shareIntent.putExtra(Intent.EXTRA_SUBJECT, getString(R.string.share_issue_subject,
-                        mIssueNumber, mIssue.getTitle(), mRepoOwner + "/" + mRepoName));
-                shareIntent.putExtra(Intent.EXTRA_TEXT,  mIssue.getHtmlUrl());
-                shareIntent = Intent.createChooser(shareIntent, getString(R.string.share_title));
-                startActivity(shareIntent);
+                IntentUtils.share(this, getString(R.string.share_issue_subject,
+                        mIssueNumber, mIssue.getTitle(), mRepoOwner + "/" + mRepoName),
+                        mIssue.getHtmlUrl());
                 return true;
             case R.id.browser:
                 IntentUtils.launchBrowser(this, Uri.parse(mIssue.getHtmlUrl()));
+                return true;
+            case R.id.copy_number:
+                IntentUtils.copyToClipboard(this, "Issue #" + mIssueNumber,
+                        String.valueOf(mIssueNumber));
                 return true;
         }
         return super.onOptionsItemSelected(item);
@@ -270,6 +298,14 @@ public class IssueActivity extends BaseActivity implements View.OnClickListener 
         supportInvalidateOptionsMenu();
         forceLoaderReload(0, 1);
         super.onRefresh();
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (mFragment != null && mFragment.onBackPressed()) {
+            return;
+        }
+        super.onBackPressed();
     }
 
     private void showOpenCloseConfirmDialog(final boolean reopen) {

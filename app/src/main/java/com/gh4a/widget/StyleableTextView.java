@@ -4,7 +4,6 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.content.res.TypedArray;
 import android.graphics.Typeface;
-import android.support.v7.text.AllCapsTransformationMethod;
 import android.support.v7.widget.AppCompatTextView;
 import android.text.method.LinkMovementMethod;
 import android.util.AttributeSet;
@@ -42,7 +41,6 @@ public class StyleableTextView extends AppCompatTextView {
     private void initAttributes(Context context, AttributeSet attrs, int defStyle) {
         Resources.Theme theme = context.getTheme();
         TypedArray appearance = null;
-        boolean allCaps = false;
 
         if (attrs != null) {
             TypedArray a = theme.obtainStyledAttributes(attrs, TEXT_APPEARANCE_ATTRS, defStyle, 0);
@@ -59,11 +57,8 @@ public class StyleableTextView extends AppCompatTextView {
                 int attr = appearance.getIndex(i);
 
                 switch (attr) {
-                    case R.styleable.StyleableTextView_font:
+                    case R.styleable.StyleableTextView_ghFont:
                         mTypefaceValue = appearance.getInt(attr, -1);
-                        break;
-                    case R.styleable.StyleableTextView_allCaps:
-                        allCaps = appearance.getBoolean(attr, false);
                         break;
                 }
             }
@@ -76,11 +71,8 @@ public class StyleableTextView extends AppCompatTextView {
             int attr = a.getIndex(i);
 
             switch (attr) {
-                case R.styleable.StyleableTextView_font:
+                case R.styleable.StyleableTextView_ghFont:
                     mTypefaceValue = a.getInt(attr, -1);
-                    break;
-                case R.styleable.StyleableTextView_allCaps:
-                    allCaps = a.getBoolean(attr, false);
                     break;
             }
         }
@@ -89,9 +81,6 @@ public class StyleableTextView extends AppCompatTextView {
 
         if (!isInEditMode()) {
             setTypeface(TypefaceCache.getTypeface(mTypefaceValue));
-        }
-        if (allCaps) {
-            setTransformationMethod(new AllCapsTransformationMethod(getContext()));
         }
     }
 

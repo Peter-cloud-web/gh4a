@@ -5,7 +5,6 @@ import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentTransaction;
-import android.support.v4.view.MenuItemCompat;
 import android.support.v7.widget.SearchView;
 import android.text.TextUtils;
 import android.util.SparseArray;
@@ -28,7 +27,7 @@ import org.eclipse.egit.github.core.Repository;
 
 public class RepositoryListContainerFragment extends Fragment implements
         LoaderCallbacks.ParentCallback, SearchView.OnCloseListener, SearchView.OnQueryTextListener,
-        MenuItemCompat.OnActionExpandListener, SwipeRefreshLayout.ChildScrollDelegate {
+        MenuItem.OnActionExpandListener, SwipeRefreshLayout.ChildScrollDelegate {
     public static RepositoryListContainerFragment newInstance(String userLogin, boolean isOrg) {
         return newInstance(userLogin, isOrg, null);
     }
@@ -46,7 +45,7 @@ public class RepositoryListContainerFragment extends Fragment implements
         return f;
     }
 
-    public static String FILTER_TYPE_STARRED = "starred";
+    public static final String FILTER_TYPE_STARRED = "starred";
 
     private String mUserLogin;
     private boolean mIsOrg;
@@ -59,6 +58,7 @@ public class RepositoryListContainerFragment extends Fragment implements
     private RepositorySearchFragment mSearchFragment;
     private MenuItem mFilterItem;
     private String mSearchQuery;
+    private boolean mSearchIsExpanded;
 
     public interface Callback {
         void initiateFilter();
@@ -69,13 +69,18 @@ public class RepositoryListContainerFragment extends Fragment implements
     private static final String STATE_KEY_SORT_DIRECTION = "sort_direction";
     private static final String STATE_KEY_SEARCH_VISIBLE = "search_visible";
     private static final String STATE_KEY_QUERY = "search_query";
+    private static final String STATE_KEY_SEARCH_IS_EXPANDED = "search_is_expanded";
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         Bundle data = getArguments();
         mUserLogin = data.getString("user");
         mIsOrg = data.getBoolean("is_org");
-        mFilterType = data.getString("filter_type", "all");
+
+        // Only read filter type from arguments if it wasn't overridden already by our parent
+        if (mFilterType == null) {
+            mFilterType = data.getString("filter_type", "all");
+        }
 
         if (savedInstanceState != null && savedInstanceState.containsKey(STATE_KEY_FILTER_TYPE)) {
             mFilterType = savedInstanceState.getString(STATE_KEY_FILTER_TYPE);
@@ -83,6 +88,7 @@ public class RepositoryListContainerFragment extends Fragment implements
             mSortDirection = savedInstanceState.getString(STATE_KEY_SORT_DIRECTION);
             mSearchVisible = savedInstanceState.getBoolean(STATE_KEY_SEARCH_VISIBLE);
             mSearchQuery = savedInstanceState.getString(STATE_KEY_QUERY);
+            mSearchIsExpanded = savedInstanceState.getBoolean(STATE_KEY_SEARCH_IS_EXPANDED);
         }
 
         setHasOptionsMenu(true);
@@ -146,6 +152,7 @@ public class RepositoryListContainerFragment extends Fragment implements
         outState.putString(STATE_KEY_SORT_DIRECTION, mSortDirection);
         outState.putBoolean(STATE_KEY_SEARCH_VISIBLE, mSearchVisible);
         outState.putString(STATE_KEY_QUERY, mSearchQuery);
+        outState.putBoolean(STATE_KEY_SEARCH_IS_EXPANDED, mSearchIsExpanded);
     }
 
     public void setFilterType(String type) {
@@ -242,11 +249,11 @@ public class RepositoryListContainerFragment extends Fragment implements
         // We can only properly search the 'all repos' list
         if ("all".equals(mFilterType)) {
             MenuItem searchItem = menu.findItem(R.id.search);
-            MenuItemCompat.setOnActionExpandListener(searchItem, this);
+            searchItem.setOnActionExpandListener(this);
 
-            final SearchView searchView = (SearchView) MenuItemCompat.getActionView(searchItem);
-            if (mSearchQuery != null) {
-                MenuItemCompat.expandActionView(searchItem);
+            final SearchView searchView = (SearchView) searchItem.getActionView();
+            if (mSearchIsExpanded) {
+                searchItem.expandActionView();
                 searchView.setQuery(mSearchQuery, false);
             }
             searchView.setOnCloseListener(this);
@@ -311,6 +318,7 @@ public class RepositoryListContainerFragment extends Fragment implements
 
     @Override
     public boolean onClose() {
+        mSearchIsExpanded = false;
         mSearchQuery = null;
         setSearchVisibility(false);
         return false;
@@ -318,11 +326,13 @@ public class RepositoryListContainerFragment extends Fragment implements
 
     @Override
     public boolean onMenuItemActionExpand(MenuItem item) {
+        mSearchIsExpanded = true;
         return true;
     }
 
     @Override
     public boolean onMenuItemActionCollapse(MenuItem item) {
+        mSearchIsExpanded = false;
         mSearchQuery = null;
         setSearchVisibility(false);
         return true;

@@ -30,8 +30,10 @@ import android.graphics.drawable.ColorDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.support.annotation.CallSuper;
 import android.support.annotation.IdRes;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.design.widget.AppBarLayout;
 import android.support.design.widget.CoordinatorLayout;
 import android.support.design.widget.NavigationView;
@@ -65,9 +67,13 @@ import com.gh4a.activities.SearchActivity;
 import com.gh4a.activities.home.HomeActivity;
 import com.gh4a.fragment.SettingsFragment;
 import com.gh4a.loader.LoaderCallbacks;
+import com.gh4a.utils.IntentUtils;
 import com.gh4a.utils.UiUtils;
 import com.gh4a.widget.SwipeRefreshLayout;
 import com.gh4a.widget.ToggleableAppBarLayoutBehavior;
+
+import org.eclipse.egit.github.core.BlockReason;
+import org.eclipse.egit.github.core.client.RequestException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -84,6 +90,7 @@ public abstract class BaseActivity extends AppCompatActivity implements
     private boolean mContentShown;
     private boolean mContentEmpty;
     private boolean mErrorShown;
+    private boolean mCanSwipeToRefresh = true;
 
     private AppBarLayout mHeader;
     private ToggleableAppBarLayoutBehavior mHeaderBehavior;
@@ -97,6 +104,9 @@ public abstract class BaseActivity extends AppCompatActivity implements
     private View mRightDrawerHeader;
     private SupportMenuInflater mMenuInflater;
 
+    private boolean mAppBarLocked = false;
+    private boolean mAppBarScrollable = true;
+
     private ActivityCompat.OnRequestPermissionsResultCallback mPendingPermissionCb;
 
     private final List<ColorDrawable> mHeaderDrawables = new ArrayList<>();
@@ -109,7 +119,9 @@ public abstract class BaseActivity extends AppCompatActivity implements
         @TargetApi(21)
         @Override
         public void run() {
-            setTaskDescription(new ActivityManager.TaskDescription(null, null, mProgressColors[0]));
+            String label = IntentUtils.isNewTaskIntent(getIntent()) ? getActionBarTitle() : null;
+            setTaskDescription(new ActivityManager.TaskDescription(label, null,
+                    mProgressColors[0]));
         }
     };
 
@@ -124,6 +136,23 @@ public abstract class BaseActivity extends AppCompatActivity implements
         setupSwipeToRefresh();
         setupNavigationDrawer();
         setupHeaderDrawable();
+
+        ActionBar actionBar = getSupportActionBar();
+        actionBar.setTitle(getActionBarTitle());
+        actionBar.setSubtitle(getActionBarSubtitle());
+        actionBar.setDisplayHomeAsUpEnabled(!IntentUtils.isNewTaskIntent(getIntent()));
+
+        scheduleTaskDescriptionUpdate();
+    }
+
+    @Nullable
+    protected String getActionBarTitle() {
+        return null;
+    }
+
+    @Nullable
+    protected String getActionBarSubtitle() {
+        return null;
     }
 
     @Override
@@ -144,7 +173,7 @@ public abstract class BaseActivity extends AppCompatActivity implements
     }
 
     public void handleLoadFailure(Exception e) {
-        setErrorViewVisibility(true);
+        setErrorViewVisibility(true, e);
     }
 
     protected int getLeftNavigationDrawerMenuResource() {
@@ -190,15 +219,16 @@ public abstract class BaseActivity extends AppCompatActivity implements
     }
 
     protected boolean canSwipeToRefresh() {
-        return true;
+        return mCanSwipeToRefresh;
+    }
+
+    public void setCanSwipeToRefresh(boolean canSwipeToRefresh) {
+        mCanSwipeToRefresh = canSwipeToRefresh;
+        updateSwipeToRefreshState();
     }
 
     protected void setChildScrollDelegate(SwipeRefreshLayout.ChildScrollDelegate delegate) {
         mSwipeLayout.setChildScrollDelegate(delegate);
-    }
-
-    protected void setEmptyText(int resId) {
-        setEmptyText(getString(resId));
     }
 
     protected void setEmptyText(CharSequence text) {
@@ -346,8 +376,21 @@ public abstract class BaseActivity extends AppCompatActivity implements
         mHeader.addOnOffsetChangedListener(l);
     }
 
+    public int getAppBarTotalScrollRange() {
+        return mHeader.getTotalScrollRange();
+    }
+
     public void removeAppBarOffsetListener(AppBarLayout.OnOffsetChangedListener l) {
         mHeader.removeOnOffsetChangedListener(l);
+    }
+
+    public void collapseAppBar() {
+        mHeader.setExpanded(false);
+    }
+
+    public void setAppBarLocked(boolean locked) {
+        mAppBarLocked = locked;
+        updateAppBarEnabledState();
     }
 
     protected void addHeaderView(View view, boolean scrollable) {
@@ -359,7 +402,12 @@ public abstract class BaseActivity extends AppCompatActivity implements
 
     protected void setToolbarScrollable(boolean scrollable) {
         setAppBarChildScrollable(mToolbar, scrollable);
-        mHeaderBehavior.setEnabled(scrollable);
+        mAppBarScrollable = scrollable;
+        updateAppBarEnabledState();
+    }
+
+    private void updateAppBarEnabledState() {
+        mHeaderBehavior.setEnabled(mAppBarScrollable && !mAppBarLocked);
     }
 
     private void setAppBarChildScrollable(View view, boolean scrollable) {
@@ -392,6 +440,22 @@ public abstract class BaseActivity extends AppCompatActivity implements
     }
 
     @Override
+    @CallSuper
+    public boolean onCreateOptionsMenu(Menu menu) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP
+                && !IntentUtils.isNewTaskIntent(getIntent())
+                && displayDetachAction()) {
+            menu.add(Menu.NONE, R.id.detach, Menu.NONE, R.string.detach);
+        }
+
+        return super.onCreateOptionsMenu(menu);
+    }
+
+    public boolean displayDetachAction() {
+        return false;
+    }
+
+    @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         if (item.getItemId() == android.R.id.home) {
             Intent intent = navigateUp();
@@ -400,6 +464,13 @@ public abstract class BaseActivity extends AppCompatActivity implements
                 startActivity(intent);
             } else {
                 finish();
+            }
+            return true;
+        }
+
+        if (item.getItemId() == R.id.detach) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                IntentUtils.startNewTask(this, getIntent());
             }
             return true;
         }
@@ -439,7 +510,7 @@ public abstract class BaseActivity extends AppCompatActivity implements
     }
 
     @Override
-    public boolean onNavigationItemSelected(MenuItem item) {
+    public boolean onNavigationItemSelected(@NonNull MenuItem item) {
         mDrawerLayout.closeDrawers();
         return false;
     }
@@ -507,7 +578,7 @@ public abstract class BaseActivity extends AppCompatActivity implements
         return reloadedAny;
     }
 
-    protected void setErrorViewVisibility(boolean visible) {
+    protected void setErrorViewVisibility(boolean visible, Exception e) {
         View content = findViewById(R.id.content);
         View error = findViewById(R.id.error);
 
@@ -521,18 +592,42 @@ public abstract class BaseActivity extends AppCompatActivity implements
                 // to be visible, so there's nothing to do
                 return;
             }
-            ViewStub errorStub = (ViewStub) findViewById(R.id.error_stub);
+            ViewStub errorStub = findViewById(R.id.error_stub);
             error = errorStub.inflate();
 
             error.findViewById(R.id.retry_button).setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    setErrorViewVisibility(false);
+                    setErrorViewVisibility(false, null);
                     onRefresh();
                 }
             });
         }
-        error.setVisibility(visible ? View.VISIBLE : View.GONE);
+
+        if (visible) {
+            View retryButton = error.findViewById(R.id.retry_button);
+            TextView messageView = error.findViewById(R.id.error_message);
+
+            RequestException re = e instanceof RequestException ? (RequestException) e : null;
+            BlockReason blockReason = re != null && re.getError() != null
+                    ? re.getError().getBlockReason() : null;
+
+            if (blockReason != null) {
+                messageView.setText(
+                        getString(R.string.load_failure_explanation_dmca, blockReason.getHtmlUrl()));
+                retryButton.setVisibility(View.GONE);
+            } else if (re != null && re.getMessage() != null) {
+                messageView.setText(
+                        getString(R.string.load_failure_explanation_with_reason, re.getMessage()));
+                retryButton.setVisibility(View.VISIBLE);
+            } else {
+                messageView.setText(R.string.load_failure_explanation);
+                retryButton.setVisibility(View.VISIBLE);
+            }
+            error.setVisibility(View.VISIBLE);
+        } else {
+            error.setVisibility(View.GONE);
+        }
     }
 
     protected void onDrawerOpened(boolean right) {
@@ -578,7 +673,7 @@ public abstract class BaseActivity extends AppCompatActivity implements
     }
 
     private void setupSwipeToRefresh() {
-        mSwipeLayout = (SwipeRefreshLayout) findViewById(R.id.swipe_container);
+        mSwipeLayout = findViewById(R.id.swipe_container);
         if (canSwipeToRefresh()) {
             mSwipeLayout.setOnRefreshListener(this);
             mSwipeLayout.setColorSchemeColors(
@@ -586,16 +681,25 @@ public abstract class BaseActivity extends AppCompatActivity implements
                     UiUtils.resolveColor(this, R.attr.colorPrimaryDark), 0
             );
         }
+
+        CoordinatorLayout.LayoutParams lp =
+                (CoordinatorLayout.LayoutParams) mSwipeLayout.getLayoutParams();
+        lp.setBehavior(onCreateSwipeLayoutBehavior());
+
         updateSwipeToRefreshState();
     }
 
+    protected AppBarLayout.ScrollingViewBehavior onCreateSwipeLayoutBehavior() {
+        return new AppBarLayout.ScrollingViewBehavior();
+    }
+
     private void setupNavigationDrawer() {
-        NavigationView leftDrawer = (NavigationView) findViewById(R.id.left_drawer);
+        NavigationView leftDrawer = findViewById(R.id.left_drawer);
         applyHighlightColor(leftDrawer);
-        mRightDrawer = (NavigationView) findViewById(R.id.right_drawer);
+        mRightDrawer = findViewById(R.id.right_drawer);
         applyHighlightColor(mRightDrawer);
 
-        mDrawerLayout = (DrawerLayout) findViewById(R.id.drawer_container);
+        mDrawerLayout = findViewById(R.id.drawer_container);
         mDrawerLayout.addDrawerListener(new DrawerLayout.DrawerListener() {
             @Override
             public void onDrawerSlide(View drawerView, float slideOffset) {
@@ -614,7 +718,7 @@ public abstract class BaseActivity extends AppCompatActivity implements
             }
         });
 
-        Toolbar toolBar = (Toolbar) findViewById(R.id.toolbar);
+        Toolbar toolBar = findViewById(R.id.toolbar);
         setSupportActionBar(toolBar);
 
         int drawerMenuResId = getLeftNavigationDrawerMenuResource();
@@ -723,17 +827,17 @@ public abstract class BaseActivity extends AppCompatActivity implements
         if (mContentContainer != null && mProgress != null) {
             return;
         }
-        mProgress = (SmoothProgressBar) findViewById(R.id.progress);
+        mProgress = findViewById(R.id.progress);
         mProgressColors[0] = UiUtils.resolveColor(this, R.attr.colorPrimary);
         mProgressColors[1] = UiUtils.resolveColor(this, R.attr.colorPrimaryDark);
         mProgress.setSmoothProgressDrawableColors(mProgressColors);
 
-        mCoordinatorLayout = (CoordinatorLayout) findViewById(R.id.coordinator_layout);
-        mContentContainer = (ViewGroup) findViewById(R.id.content_container);
-        mEmptyView = (TextView) findViewById(android.R.id.empty);
+        mCoordinatorLayout = findViewById(R.id.coordinator_layout);
+        mContentContainer = findViewById(R.id.content_container);
+        mEmptyView = findViewById(android.R.id.empty);
 
-        mHeader = (AppBarLayout) findViewById(R.id.header);
-        mToolbar = (Toolbar) findViewById(R.id.toolbar);
+        mHeader = findViewById(R.id.header);
+        mToolbar = findViewById(R.id.toolbar);
 
         mHeaderBehavior = new ToggleableAppBarLayoutBehavior();
         CoordinatorLayout.LayoutParams lp =

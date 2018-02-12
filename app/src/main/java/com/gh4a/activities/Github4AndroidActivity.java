@@ -80,7 +80,7 @@ public class Github4AndroidActivity extends BaseActivity implements View.OnClick
         } else {
             setContentView(R.layout.main);
 
-            AppBarLayout abl = (AppBarLayout) findViewById(R.id.header);
+            AppBarLayout abl = findViewById(R.id.header);
             abl.setEnabled(false);
 
             FrameLayout contentContainer = (FrameLayout) findViewById(R.id.content).getParent();
@@ -166,7 +166,9 @@ public class Github4AndroidActivity extends BaseActivity implements View.OnClick
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == REQUEST_SETTINGS) {
-            if (data.getBooleanExtra(SettingsActivity.RESULT_EXTRA_THEME_CHANGED, false)) {
+            boolean themeChange = data != null
+                    && data.getBooleanExtra(SettingsActivity.RESULT_EXTRA_THEME_CHANGED, false);
+            if (themeChange) {
                 Intent intent = new Intent(getIntent());
                 intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
                 startActivity(intent);
@@ -207,7 +209,7 @@ public class Github4AndroidActivity extends BaseActivity implements View.OnClick
     }
 
     private class FetchTokenTask extends BackgroundTask<Pair<User, String>> {
-        private Uri mUri;
+        private final Uri mUri;
         public FetchTokenTask(Uri uri) {
             super(Github4AndroidActivity.this);
             mUri = uri;
@@ -261,7 +263,7 @@ public class Github4AndroidActivity extends BaseActivity implements View.OnClick
         @Override
         protected void onError(Exception e) {
             super.onError(e);
-            setErrorViewVisibility(true);
+            setErrorViewVisibility(true, e);
         }
 
         @Override

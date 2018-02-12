@@ -20,15 +20,12 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
-import android.os.PersistableBundle;
+import android.support.annotation.Nullable;
 import android.support.annotation.StringRes;
 import android.support.design.widget.CoordinatorLayout;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.Loader;
-import android.support.v4.view.MenuItemCompat;
-import android.support.v4.view.ViewCompat;
-import android.support.v7.app.ActionBar;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.SearchView;
@@ -37,7 +34,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 
-import com.gh4a.BasePagerActivity;
+import com.gh4a.BaseFragmentPagerActivity;
 import com.gh4a.Gh4Application;
 import com.gh4a.R;
 import com.gh4a.fragment.IssueListFragment;
@@ -50,6 +47,7 @@ import com.gh4a.loader.LoaderResult;
 import com.gh4a.loader.MilestoneListLoader;
 import com.gh4a.loader.ProgressDialogLoaderCallbacks;
 import com.gh4a.utils.ApiHelpers;
+import com.gh4a.utils.UiUtils;
 
 import org.eclipse.egit.github.core.Issue;
 import org.eclipse.egit.github.core.Label;
@@ -61,10 +59,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-public class IssueListActivity extends BasePagerActivity implements
+public class IssueListActivity extends BaseFragmentPagerActivity implements
         View.OnClickListener, LoadingListFragmentBase.OnRecyclerViewCreatedListener,
         SearchView.OnCloseListener, SearchView.OnQueryTextListener,
-        MenuItemCompat.OnActionExpandListener {
+        MenuItem.OnActionExpandListener {
     public static Intent makeIntent(Context context, String repoOwner, String repoName) {
         return makeIntent(context, repoOwner, repoName, false);
     }
@@ -90,6 +88,7 @@ public class IssueListActivity extends BasePagerActivity implements
     private String mSelectedAssignee;
     private String mSearchQuery;
     private boolean mSearchMode;
+    private boolean mSearchIsExpanded;
     private int mSelectedParticipatingStatus = 0;
 
     private FloatingActionButton mCreateFab;
@@ -104,6 +103,11 @@ public class IssueListActivity extends BasePagerActivity implements
 
     private static final String STATE_KEY_SEARCH_QUERY = "search_query";
     private static final String STATE_KEY_SEARCH_MODE = "search_mode";
+    private static final String STATE_KEY_SEARCH_IS_EXPANDED = "search_is_expanded";
+    private static final String STATE_KEY_SELECTED_MILESTONE = "selected_milestone";
+    private static final String STATE_KEY_SELECTED_LABEL = "selected_label";
+    private static final String STATE_KEY_SELECTED_ASSIGNEE = "selected_assignee";
+    private static final String STATE_KEY_PARTICIPATING_STATUS = "participating_status";
 
     private static final String LIST_QUERY = "is:%s %s repo:%s/%s %s %s %s %s";
     private static final String SEARCH_QUERY = "is:%s %s repo:%s/%s %s";
@@ -194,6 +198,11 @@ public class IssueListActivity extends BasePagerActivity implements
         if (savedInstanceState != null) {
             mSearchQuery = savedInstanceState.getString(STATE_KEY_SEARCH_QUERY);
             mSearchMode = savedInstanceState.getBoolean(STATE_KEY_SEARCH_MODE);
+            mSearchIsExpanded = savedInstanceState.getBoolean(STATE_KEY_SEARCH_IS_EXPANDED);
+            mSelectedMilestone = savedInstanceState.getString(STATE_KEY_SELECTED_MILESTONE);
+            mSelectedLabel = savedInstanceState.getString(STATE_KEY_SELECTED_LABEL);
+            mSelectedAssignee = savedInstanceState.getString(STATE_KEY_SELECTED_ASSIGNEE);
+            mSelectedParticipatingStatus = savedInstanceState.getInt(STATE_KEY_PARTICIPATING_STATUS);
         }
 
         if (!mIsPullRequest && Gh4Application.get().isAuthorized()) {
@@ -205,11 +214,18 @@ public class IssueListActivity extends BasePagerActivity implements
         }
 
         getSupportLoaderManager().initLoader(3, null, mIsCollaboratorCallback);
+    }
 
-        ActionBar actionBar = getSupportActionBar();
-        actionBar.setTitle(mIsPullRequest ? R.string.pull_requests : R.string.issues);
-        actionBar.setSubtitle(mRepoOwner + "/" + mRepoName);
-        actionBar.setDisplayHomeAsUpEnabled(true);
+    @Nullable
+    @Override
+    protected String getActionBarTitle() {
+        return getString(mIsPullRequest ? R.string.pull_requests : R.string.issues);
+    }
+
+    @Nullable
+    @Override
+    protected String getActionBarSubtitle() {
+        return mRepoOwner + "/" + mRepoName;
     }
 
     @Override
@@ -218,11 +234,6 @@ public class IssueListActivity extends BasePagerActivity implements
         mRepoOwner = extras.getString("owner");
         mRepoName = extras.getString("repo");
         mIsPullRequest = extras.getBoolean("is_pull_request");
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
     }
 
     @Override
@@ -237,10 +248,15 @@ public class IssueListActivity extends BasePagerActivity implements
     }
 
     @Override
-    public void onSaveInstanceState(Bundle outState, PersistableBundle outPersistentState) {
-        super.onSaveInstanceState(outState, outPersistentState);
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
         outState.putString(STATE_KEY_SEARCH_QUERY, mSearchQuery);
         outState.putBoolean(STATE_KEY_SEARCH_MODE, mSearchMode);
+        outState.putBoolean(STATE_KEY_SEARCH_IS_EXPANDED, mSearchIsExpanded);
+        outState.putString(STATE_KEY_SELECTED_MILESTONE, mSelectedMilestone);
+        outState.putString(STATE_KEY_SELECTED_LABEL, mSelectedLabel);
+        outState.putString(STATE_KEY_SELECTED_ASSIGNEE, mSelectedAssignee);
+        outState.putInt(STATE_KEY_PARTICIPATING_STATUS, mSelectedParticipatingStatus);
     }
 
     @Override
@@ -260,8 +276,8 @@ public class IssueListActivity extends BasePagerActivity implements
         super.onPageMoved(position, fraction);
         if (!mSearchMode && mCreateFab != null) {
             float openFraction = 1 - position - fraction;
-            ViewCompat.setScaleX(mCreateFab, openFraction);
-            ViewCompat.setScaleY(mCreateFab, openFraction);
+            mCreateFab.setScaleX(openFraction);
+            mCreateFab.setScaleY(openFraction);
             mCreateFab.setVisibility(openFraction == 0 ? View.INVISIBLE : View.VISIBLE);
         }
     }
@@ -354,6 +370,45 @@ public class IssueListActivity extends BasePagerActivity implements
     }
 
     @Override
+    protected void onPrepareRightNavigationDrawerMenu(Menu menu) {
+        super.onPrepareRightNavigationDrawerMenu(menu);
+        MenuItem milestoneFilterItem = menu.findItem(R.id.filter_by_milestone);
+        if (milestoneFilterItem != null) {
+            final String subtitle =
+                    mSelectedMilestone == null ? getString(R.string.issue_filter_by_any_milestone) :
+                    mSelectedMilestone.isEmpty() ? getString(R.string.issue_filter_by_no_milestone) :
+                    mSelectedMilestone;
+            UiUtils.setMenuItemText(this, milestoneFilterItem,
+                    getString(R.string.issue_filter_by_milestone), subtitle);
+        }
+        MenuItem labelFilterItem = menu.findItem(R.id.filter_by_label);
+        if (labelFilterItem != null) {
+            final String subtitle =
+                    mSelectedLabel == null ? getString(R.string.issue_filter_by_any_label) :
+                    mSelectedLabel.isEmpty() ? getString(R.string.issue_filter_by_no_label) :
+                    mSelectedLabel;
+            UiUtils.setMenuItemText(this, labelFilterItem,
+                    getString(R.string.issue_filter_by_labels), subtitle);
+        }
+        MenuItem assigneeFilterItem = menu.findItem(R.id.filter_by_assignee);
+        if (assigneeFilterItem != null) {
+            final String subtitle =
+                    mSelectedAssignee == null ? getString(R.string.issue_filter_by_any_assignee) :
+                    mSelectedAssignee.isEmpty() ? getString(R.string.issue_filter_by_no_assignee) :
+                    mSelectedAssignee;
+            UiUtils.setMenuItemText(this, assigneeFilterItem,
+                    getString(R.string.issue_filter_by_assignee), subtitle);
+        }
+        MenuItem participatingFilterItem = menu.findItem(R.id.filter_by_participating);
+        if (participatingFilterItem != null) {
+            String[] valueStrings = getResources().getStringArray(R.array.filter_participating);
+            UiUtils.setMenuItemText(this, participatingFilterItem,
+                    getString(R.string.issue_filter_by_participating),
+                    valueStrings[mSelectedParticipatingStatus]);
+        }
+    }
+
+    @Override
     public boolean onNavigationItemSelected(MenuItem item) {
         super.onNavigationItemSelected(item);
 
@@ -393,15 +448,20 @@ public class IssueListActivity extends BasePagerActivity implements
         getMenuInflater().inflate(R.menu.issue_list_menu, menu);
 
         MenuItem searchItem = menu.findItem(R.id.search);
-        MenuItemCompat.setOnActionExpandListener(searchItem, this);
+        searchItem.setOnActionExpandListener(this);
 
-        final SearchView searchView = (SearchView) MenuItemCompat.getActionView(searchItem);
-        if (mSearchQuery != null) {
-            MenuItemCompat.expandActionView(searchItem);
+        final SearchView searchView = (SearchView) searchItem.getActionView();
+        if (mSearchIsExpanded) {
+            searchItem.expandActionView();
             searchView.setQuery(mSearchQuery, false);
         }
         searchView.setOnCloseListener(this);
         searchView.setOnQueryTextListener(this);
+
+        if (mSelectedMilestone != null || mSelectedAssignee != null
+                || mSelectedLabel != null || mSelectedParticipatingStatus != 0) {
+            menu.findItem(R.id.remove_filter).setVisible(true);
+        }
 
         return super.onCreateOptionsMenu(menu);
     }
@@ -412,16 +472,30 @@ public class IssueListActivity extends BasePagerActivity implements
             toggleRightSideDrawer();
             return true;
         }
+        if (item.getItemId() == R.id.remove_filter) {
+            removeFilter();
+            return true;
+        }
         return super.onOptionsItemSelected(item);
+    }
+
+    private void removeFilter() {
+        mSelectedMilestone = null;
+        mSelectedAssignee = null;
+        mSelectedLabel = null;
+        mSelectedParticipatingStatus = 0;
+        onFilterUpdated();
     }
 
     @Override
     public boolean onMenuItemActionExpand(MenuItem item) {
+        mSearchIsExpanded = true;
         return true;
     }
 
     @Override
     public boolean onMenuItemActionCollapse(MenuItem item) {
+        mSearchIsExpanded = false;
         mSearchQuery = null;
         setSearchMode(false);
         return true;
@@ -429,6 +503,7 @@ public class IssueListActivity extends BasePagerActivity implements
 
     @Override
     public boolean onClose() {
+        mSearchIsExpanded = false;
         mSearchQuery = null;
         setSearchMode(false);
         return true;
@@ -532,7 +607,7 @@ public class IssueListActivity extends BasePagerActivity implements
                         : which == 1 ? ""
                         : labels[which];
                 dialog.dismiss();
-                invalidateFragments();
+                onFilterUpdated();
             }
         };
 
@@ -565,7 +640,7 @@ public class IssueListActivity extends BasePagerActivity implements
                         : which == 1 ? ""
                         : milestones[which];
                 dialog.dismiss();
-                invalidateFragments();
+                onFilterUpdated();
             }
         };
 
@@ -575,6 +650,12 @@ public class IssueListActivity extends BasePagerActivity implements
                 .setSingleChoiceItems(milestones, selected, selectCb)
                 .setNegativeButton(R.string.cancel, null)
                 .show();
+    }
+
+    private void onFilterUpdated() {
+        invalidateFragments();
+        invalidateOptionsMenu();
+        updateRightNavigationDrawer();
     }
 
     private void showAssigneesDialog() {
@@ -599,7 +680,7 @@ public class IssueListActivity extends BasePagerActivity implements
                         : which == 1 ? ""
                         : mAssignees.get(which - 2).getLogin();
                 dialog.dismiss();
-                invalidateFragments();
+                onFilterUpdated();
             }
         };
 
@@ -641,7 +722,7 @@ public class IssueListActivity extends BasePagerActivity implements
             public void onClick(DialogInterface dialog, int which) {
                 mSelectedParticipatingStatus = which;
                 dialog.dismiss();
-                invalidateFragments();
+                onFilterUpdated();
             }
         };
 

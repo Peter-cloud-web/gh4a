@@ -21,11 +21,13 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.annotation.StringRes;
+import android.support.design.widget.AppBarLayout;
 import android.support.design.widget.CoordinatorLayout;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.Loader;
-import android.support.v7.app.ActionBar;
 import android.support.v7.app.AlertDialog;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -38,7 +40,7 @@ import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.TextView;
 
-import com.gh4a.BasePagerActivity;
+import com.gh4a.BaseFragmentPagerActivity;
 import com.gh4a.Gh4Application;
 import com.gh4a.ProgressDialogTask;
 import com.gh4a.R;
@@ -49,10 +51,12 @@ import com.gh4a.loader.IsCollaboratorLoader;
 import com.gh4a.loader.IssueLoader;
 import com.gh4a.loader.LoaderCallbacks;
 import com.gh4a.loader.LoaderResult;
+import com.gh4a.loader.PendingReviewLoader;
 import com.gh4a.loader.PullRequestLoader;
 import com.gh4a.utils.ApiHelpers;
 import com.gh4a.utils.IntentUtils;
 import com.gh4a.utils.UiUtils;
+import com.gh4a.widget.BottomSheetCompatibleScrollingViewBehavior;
 import com.gh4a.widget.IssueStateTrackingFloatingActionButton;
 
 import org.eclipse.egit.github.core.Issue;
@@ -60,13 +64,15 @@ import org.eclipse.egit.github.core.MergeStatus;
 import org.eclipse.egit.github.core.PullRequest;
 import org.eclipse.egit.github.core.PullRequestMarker;
 import org.eclipse.egit.github.core.RepositoryId;
+import org.eclipse.egit.github.core.Review;
 import org.eclipse.egit.github.core.User;
 import org.eclipse.egit.github.core.service.PullRequestService;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 
-public class PullRequestActivity extends BasePagerActivity implements
+public class PullRequestActivity extends BaseFragmentPagerActivity implements
         View.OnClickListener, PullRequestFilesFragment.CommentUpdateListener {
     public static Intent makeIntent(Context context, String repoOwner, String repoName, int number) {
         return makeIntent(context, repoOwner, repoName, number, -1, null);
@@ -86,6 +92,7 @@ public class PullRequestActivity extends BasePagerActivity implements
     public static final int PAGE_FILES = 2;
 
     private static final int REQUEST_EDIT_ISSUE = 1001;
+    private static final int REQUEST_CREATE_REVIEW = 1002;
 
     private String mRepoOwner;
     private String mRepoName;
@@ -98,6 +105,8 @@ public class PullRequestActivity extends BasePagerActivity implements
     private PullRequest mPullRequest;
     private PullRequestFragment mPullRequestFragment;
     private IssueStateTrackingFloatingActionButton mEditFab;
+    private Review mPendingReview;
+    private boolean mPendingReviewLoaded;
 
     private ViewGroup mHeader;
     private int[] mHeaderColorAttrs;
@@ -165,6 +174,29 @@ public class PullRequestActivity extends BasePagerActivity implements
         }
     };
 
+    private final LoaderCallbacks<List<Review>> mPendingReviewCallback =
+            new LoaderCallbacks<List<Review>>(this) {
+        @Override
+        protected Loader<LoaderResult<List<Review>>> onCreateLoader() {
+            return new PendingReviewLoader(PullRequestActivity.this,
+                    mRepoOwner, mRepoName, mPullRequestNumber);
+        }
+
+        @Override
+        protected void onResultReady(List<Review> result) {
+            String ownLogin = Gh4Application.get().getAuthLogin();
+            mPendingReview = null;
+            for (Review review : result) {
+                if (ApiHelpers.loginEquals(review.getUser(), ownLogin)) {
+                    mPendingReview = review;
+                    break;
+                }
+            }
+            mPendingReviewLoaded = true;
+            supportInvalidateOptionsMenu();
+        }
+    };
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -173,18 +205,30 @@ public class PullRequestActivity extends BasePagerActivity implements
         mHeader = (ViewGroup) inflater.inflate(R.layout.issue_header, null);
         mHeader.setClickable(false);
         mHeader.setVisibility(View.GONE);
-        addHeaderView(mHeader, true);
-
-        ActionBar actionBar = getSupportActionBar();
-        actionBar.setTitle(getResources().getString(R.string.pull_request_title) + " #" + mPullRequestNumber);
-        actionBar.setSubtitle(mRepoOwner + "/" + mRepoName);
-        actionBar.setDisplayHomeAsUpEnabled(true);
+        addHeaderView(mHeader, !hasTabsInToolbar());
 
         setContentShown(false);
 
         getSupportLoaderManager().initLoader(0, null, mPullRequestCallback);
         getSupportLoaderManager().initLoader(1, null, mIssueCallback);
         getSupportLoaderManager().initLoader(2, null, mCollaboratorCallback);
+        getSupportLoaderManager().initLoader(3, null, mPendingReviewCallback);
+    }
+
+    @NonNull
+    protected String getActionBarTitle() {
+        return getString(R.string.pull_request_title) + " #" + mPullRequestNumber;
+    }
+
+    @Nullable
+    @Override
+    protected String getActionBarSubtitle() {
+        return mRepoOwner + "/" + mRepoName;
+    }
+
+    @Override
+    protected AppBarLayout.ScrollingViewBehavior onCreateSwipeLayoutBehavior() {
+        return new BottomSheetCompatibleScrollingViewBehavior();
     }
 
     @Override
@@ -219,11 +263,22 @@ public class PullRequestActivity extends BasePagerActivity implements
             MenuItem mergeItem = menu.findItem(R.id.pull_merge);
             mergeItem.setEnabled(false);
         }
+
         if (mPullRequest == null) {
+            menu.removeItem(R.id.share);
             menu.removeItem(R.id.browser);
+            menu.removeItem(R.id.copy_number);
+        }
+        if (!mPendingReviewLoaded || mPullRequest == null || isClosed) {
+            menu.removeItem(R.id.pull_review);
         }
 
         return super.onCreateOptionsMenu(menu);
+    }
+
+    @Override
+    public boolean displayDetachAction() {
+        return true;
     }
 
     @Override
@@ -232,23 +287,25 @@ public class PullRequestActivity extends BasePagerActivity implements
             case R.id.pull_merge:
                 showMergeDialog();
                 break;
+            case R.id.pull_review:
+                showReviewDialog();
+                break;
             case R.id.pull_close:
             case R.id.pull_reopen:
                 showOpenCloseConfirmDialog(item.getItemId() == R.id.pull_reopen);
                 break;
             case R.id.share:
-                Intent shareIntent = new Intent(Intent.ACTION_SEND);
-                shareIntent.setType("text/plain");
-                shareIntent.putExtra(Intent.EXTRA_SUBJECT, getString(R.string.share_pull_subject,
+                IntentUtils.share(this, getString(R.string.share_pull_subject,
                         mPullRequest.getNumber(), mPullRequest.getTitle(),
-                        mRepoOwner + "/" + mRepoName));
-                shareIntent.putExtra(Intent.EXTRA_TEXT, mPullRequest.getHtmlUrl());
-                shareIntent = Intent.createChooser(shareIntent, getString(R.string.share_title));
-                startActivity(shareIntent);
+                        mRepoOwner + "/" + mRepoName), mPullRequest.getHtmlUrl());
                 break;
             case R.id.browser:
                 IntentUtils.launchBrowser(this, Uri.parse(mPullRequest.getHtmlUrl()));
                 break;
+            case R.id.copy_number:
+                IntentUtils.copyToClipboard(this, "Pull Request #" + mPullRequest.getNumber(),
+                        String.valueOf(mPullRequest.getNumber()));
+                return true;
         }
         return super.onOptionsItemSelected(item);
     }
@@ -259,6 +316,14 @@ public class PullRequestActivity extends BasePagerActivity implements
             if (resultCode == Activity.RESULT_OK) {
                 setResult(Activity.RESULT_OK);
                 onRefresh();
+            }
+        } else if (requestCode == REQUEST_CREATE_REVIEW) {
+            if (resultCode == Activity.RESULT_OK) {
+                if (mPullRequestFragment != null) {
+                    mPullRequestFragment.reloadEvents(false);
+                }
+                // reload pending reviews
+                getSupportLoaderManager().getLoader(3).onContentChanged();
             }
         } else {
             super.onActivityResult(requestCode, resultCode, data);
@@ -282,6 +347,8 @@ public class PullRequestActivity extends BasePagerActivity implements
         mIssue = null;
         mPullRequest = null;
         mIsCollaborator = null;
+        mPendingReview = null;
+        mPendingReviewLoaded = false;
         setContentShown(false);
         if (mEditFab != null) {
             mEditFab.post(new Runnable() {
@@ -293,14 +360,15 @@ public class PullRequestActivity extends BasePagerActivity implements
         }
         mHeader.setVisibility(View.GONE);
         mHeaderColorAttrs = null;
-        forceLoaderReload(0, 1, 2);
+        forceLoaderReload(0, 1, 2, 3);
         invalidateTabs();
+        supportInvalidateOptionsMenu();
         super.onRefresh();
     }
 
     @Override
     protected int[] getTabTitleResIds() {
-        return mPullRequest != null && mIssue != null ? TITLES : null;
+        return mPullRequest != null && mIssue != null && mIsCollaborator != null ? TITLES : null;
     }
 
     @Override
@@ -338,6 +406,11 @@ public class PullRequestActivity extends BasePagerActivity implements
         if (f == mPullRequestFragment) {
             mPullRequestFragment = null;
         }
+    }
+
+    @Override
+    protected boolean fragmentNeedsRefresh(Fragment object) {
+        return true;
     }
 
     @Override
@@ -403,11 +476,11 @@ public class PullRequestActivity extends BasePagerActivity implements
         View view = inflater.inflate(R.layout.pull_merge_message_dialog, null);
 
         final View editorNotice = view.findViewById(R.id.notice);
-        final EditText editor = (EditText) view.findViewById(R.id.et_commit_message);
+        final EditText editor = view.findViewById(R.id.et_commit_message);
         editor.setText(mPullRequest.getTitle());
 
         final ArrayAdapter<MergeMethodDesc> adapter = new ArrayAdapter<>(this,
-                R.layout.pull_merge_method_item);
+                R.layout.spinner_item);
         adapter.add(new MergeMethodDesc(R.string.pull_merge_method_merge,
                 PullRequestService.MERGE_METHOD_MERGE));
         adapter.add(new MergeMethodDesc(R.string.pull_merge_method_squash,
@@ -415,7 +488,7 @@ public class PullRequestActivity extends BasePagerActivity implements
         adapter.add(new MergeMethodDesc(R.string.pull_merge_method_rebase,
                 PullRequestService.MERGE_METHOD_REBASE));
 
-        final Spinner mergeMethod = (Spinner) view.findViewById(R.id.merge_method);
+        final Spinner mergeMethod = view.findViewById(R.id.merge_method);
         mergeMethod.setAdapter(adapter);
         mergeMethod.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
@@ -446,14 +519,10 @@ public class PullRequestActivity extends BasePagerActivity implements
                 .show();
     }
 
-    private void updateTabRightMargin(int dimensionResId) {
-        int margin = dimensionResId != 0
-                ? getResources().getDimensionPixelSize(dimensionResId) : 0;
-
-        View tabs = findViewById(R.id.tabs);
-        ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) tabs.getLayoutParams();
-        lp.rightMargin = margin;
-        tabs.setLayoutParams(lp);
+    private void showReviewDialog() {
+        Intent intent = CreateReviewActivity.makeIntent(this, mRepoOwner, mRepoName,
+                mPullRequestNumber, mPendingReview);
+        startActivityForResult(intent, REQUEST_CREATE_REVIEW);
     }
 
     private void updateFabVisibility() {
@@ -469,10 +538,10 @@ public class PullRequestActivity extends BasePagerActivity implements
                     getLayoutInflater().inflate(R.layout.issue_edit_fab, rootLayout, false);
             mEditFab.setOnClickListener(this);
             rootLayout.addView(mEditFab);
-            updateTabRightMargin(R.dimen.mini_fab_size_with_margin);
+            adjustTabsForHeaderAlignedFab(true);
         } else if (!shouldHaveFab && mEditFab != null) {
             rootLayout.removeView(mEditFab);
-            updateTabRightMargin(0);
+            adjustTabsForHeaderAlignedFab(false);
             mEditFab = null;
         }
         if (mEditFab != null) {
@@ -501,10 +570,10 @@ public class PullRequestActivity extends BasePagerActivity implements
             };
         }
 
-        TextView tvState = (TextView) mHeader.findViewById(R.id.tv_state);
+        TextView tvState = mHeader.findViewById(R.id.tv_state);
         tvState.setText(getString(stateTextResId).toUpperCase(Locale.getDefault()));
 
-        TextView tvTitle = (TextView) mHeader.findViewById(R.id.tv_title);
+        TextView tvTitle = mHeader.findViewById(R.id.tv_title);
         tvTitle.setText(mPullRequest.getTitle());
 
         mHeader.setVisibility(View.VISIBLE);
